@@ -1,0 +1,3156 @@
+---
+title: "Untitled"
+output: html_document
+date: "2023-11-06"
+---
+
+```{r}
+
+install.packages("haven")
+install.packages("miceadds")
+install.packages("hrbrthemes")
+install.packages("sjPlot")
+install.packages("ggrepel")
+install.packages("knitr")
+install.packages("kableExtra")
+install.packages("ade4")
+install.packages("amap")
+library("haven")
+library("miceadds")
+library("tidyverse")
+library("ggplot2")
+library("hrbrthemes")
+library("sjPlot")
+library("knitr")
+library("kableExtra")
+library("ade4")
+library("amap")
+
+
+
+    
+
+
+```
+
+
+
+## Baixando os dados
+```{r}
+# Latino Barômetro, caso seja necessário
+#data <- haven::read_dta("~/Downloads/F00004296-Latinobarometro_1995_dta/Latinobarometro_1995_datos_esp_v2014_06_27.dta", encoding = "UTF-8")
+
+onda3 <- readRDS("~/Desktop/mercosul/F00008205-WV3_Data_R_v20180912.rds")
+load("~/Desktop/mercosul/WV4_Data_R_v20201117.rdata")
+onda5 <- readRDS("~/Desktop/mercosul/F00007944-WV5_Data_R_v20180912.rds")
+load("~/Desktop/mercosul/WV6_Data_R_v20201117.rdata")
+onda6 <- read_delim("~/Downloads/WV6_Data_csv_v20201117.csv", 
+     delim = ";", escape_double = FALSE, trim_ws = TRUE)
+load("~/Desktop/mercosul/WVS_Cross_National_Wave_7_rData_v5_0.rdata")
+onda7 <- `WVS_Cross-National_Wave_7_v5_0`
+
+rm( "WV6_Data_R_v20201117", "WVS_Cross-National_Wave_7_v5_0")
+
+
+```
+
+
+## Criando DataFrame específico dos países do Mercosul que foram pesquisados pela WVS por onda
+
+```{r}
+
+# DataFrame da onda 3 para os países do Mercosul, selecionando as linhas de Argentina, Brasil e Uruguai. Lembrando que o Paraguai não foi pesqusido pelo WVS 
+# Na treceira onda, não foi perguntado para os uruguaios sobre Mercosul
+#onda3mer <- onda3 %>% filter(V2 == 32 | V2 == 76 | V2 == 858) 
+# onda3mer <- onda3mer %>% select(V149_01, V214, V216, V217, V226, V234)
+
+# DataFrame da onda 5
+onda5mer <- onda5 %>% filter(V2 == 32 | V2 == 76 | V2 == 858) 
+onda5mer <- onda5mer %>% select(V2, V146_06, V235, V237, V238, V252, V257)
+
+
+
+# DataFrame da onda 6
+onda6mer <- onda6 %>% filter(V2 == 32 | V2 == 76 | V2 == 858) 
+onda6mer <- onda6mer %>% select(V2, V125_06, V240, V242, V248, V238, V256)
+
+#apply(X = is.na(arg5), MARGIN = 2, FUN = sum)
+
+
+# DataFrame da onda 7
+onda7mer <- onda7 %>% filter(B_COUNTRY == 32 | B_COUNTRY == 76 | B_COUNTRY == 858) 
+onda7mer <- onda7mer %>% select(B_COUNTRY, Q82_MERCOSUR, Q260, X003R, Q275, Q287, N_REGION_ISO)
+
+
+
+
+```
+
+
+## Limpando os dados - Retirando os dados faltantes 
+
+```{r}
+
+# Onda 5, retirando os valores faltantes 
+onda5mer <- onda5mer %>% filter(V146_06 > -2 & V238 > -2 & V252 > -2)
+
+# A onda 6 não tem dados faltantes para as variáveis selecionadas
+
+onda6mer <- onda6mer %>% filter(V125_06 > -2 & V238 > -2 & V248 > -2)
+
+
+# Onda 7, retirando os valores faltantes 
+onda7mer <- onda7mer %>% filter(Q82_MERCOSUR > -2 & Q275 > -2 & Q287 > -2)
+
+```
+
+## Limpando os dados - Atribuindo Categorias aos valores 
+
+```{r}
+# Onda 5 
+
+
+## Código do País
+onda5mer$V2[onda5mer$V2 == 32] <- "ARG"
+onda5mer$V2[onda5mer$V2 == 76] <- "BRA"
+onda5mer$V2[onda5mer$V2 == 858] <- "URU"
+
+
+## Variável Mercosul
+
+onda5mer$V146_06[onda5mer$V146_06 == 1] <- "Confia Totalmente"
+onda5mer$V146_06[onda5mer$V146_06 == 2] <- "Confia Parcialmente"
+onda5mer$V146_06[onda5mer$V146_06 == 3] <- "Confia Muito Pouco"
+onda5mer$V146_06[onda5mer$V146_06 == 4] <- "Não Confia"
+onda5mer$V146_06[onda5mer$V146_06 == -1] <- "Não Sabe"
+
+## Sexo
+
+onda5mer$V235[onda5mer$V235 == 1] <- "Masculino"
+onda5mer$V235[onda5mer$V235 == 2] <- "Feminino"
+
+## Nível Educacional
+
+onda5mer$V238[onda5mer$V238 == 1] <- "Sem Educação Formal"
+onda5mer$V238[onda5mer$V238 == 2] <- "Educação Primária Incompleta"
+onda5mer$V238[onda5mer$V238 == 3] <- "Educação Primária Completa"
+onda5mer$V238[onda5mer$V238 == 4] <- "Educação Segundo Grau Técnico Incompleto"
+onda5mer$V238[onda5mer$V238 == 5] <- "Educação Segundo Grau Técnico Completo"
+onda5mer$V238[onda5mer$V238 == 6] <- "Educação Segundo Grau Incompleta"
+onda5mer$V238[onda5mer$V238 == 7] <- "Educação Segundo Grau Completa"
+onda5mer$V238[onda5mer$V238 == 8] <- "Ensino Superior Incompleto"
+onda5mer$V238[onda5mer$V238 == 9] <- "Ensino Superior Completo"
+onda5mer$V238[onda5mer$V238 == -1] <- "Não Sabe"
+
+## Classe Social 
+
+onda5mer$V252[onda5mer$V252 == 1] <- "Rico"
+onda5mer$V252[onda5mer$V252 == 2] <- "Classe Média Alta"
+onda5mer$V252[onda5mer$V252 == 3] <- "Classe Média Baixa"
+onda5mer$V252[onda5mer$V252 == 4] <- "Classe de Trabalhadores Manuais"
+onda5mer$V252[onda5mer$V252 == 5] <- "Classe Baixa"
+onda5mer$V252[onda5mer$V252 == -1] <- "Não Sabe"
+
+
+# Onda 6 
+
+
+## Código do País
+onda6mer$V2[onda6mer$V2 == 32] <- "ARG"
+onda6mer$V2[onda6mer$V2 == 76] <- "BRA"
+onda6mer$V2[onda6mer$V2 == 858] <- "URU"
+
+## Variável Mercosul
+
+onda6mer$V125_06[onda6mer$V125_06 == 1] <- "Confia Totalmente"
+onda6mer$V125_06[onda6mer$V125_06 == 2] <- "Confia Parcialmente"
+onda6mer$V125_06[onda6mer$V125_06 == 3] <- "Confia Muito Pouco"
+onda6mer$V125_06[onda6mer$V125_06 == 4] <- "Não Confia"
+onda6mer$V125_06[onda6mer$V125_06 == -1] <- "Não Sabe"
+
+
+
+## Sexo
+
+onda6mer$V240[onda6mer$V240 == 1] <- "Masculino"
+onda6mer$V240[onda6mer$V240 == 2] <- "Feminino"
+
+## Nível Educacional
+
+onda6mer$V248[onda6mer$V248 == 1] <- "Sem Educação Formal"
+onda6mer$V248[onda6mer$V248 == 2] <- "Educação Primária Incompleta"
+onda6mer$V248[onda6mer$V248 == 3] <- "Educação Primária Completa"
+onda6mer$V248[onda6mer$V248 == 4] <- "Educação Segundo Grau Técnico Incompleto"
+onda6mer$V248[onda6mer$V248 == 5] <- "Educação Segundo Grau Técnico Completo"
+onda6mer$V248[onda6mer$V248 == 6] <- "Educação Segundo Grau Incompleta"
+onda6mer$V248[onda6mer$V248 == 7] <- "Educação Segundo Grau Completa"
+onda6mer$V248[onda6mer$V248 == 8] <- "Ensino Superior Incompleto"
+onda6mer$V248[onda6mer$V248 == 9] <- "Ensino Superior Completo"
+onda6mer$V248[onda6mer$V248 == -1] <- "Não Sabe"
+
+
+
+## Classe Social 
+
+onda6mer$V238[onda6mer$V238 == 1] <- "Rico"
+onda6mer$V238[onda6mer$V238 == 2] <- "Classe Média Alta"
+onda6mer$V238[onda6mer$V238 == 3] <- "Classe Média Baixa"
+onda6mer$V238[onda6mer$V238 == 4] <- "Classe de Trabalhadores Manuais"
+onda6mer$V238[onda6mer$V238 == 5] <- "Classe Baixa"
+onda6mer$V238[onda6mer$V238 == -1] <- "Não Sabe"
+
+
+
+
+# Onda 7 
+
+## Código do País
+onda7mer$B_COUNTRY[onda7mer$B_COUNTRY == 32] <- "ARG"
+onda7mer$B_COUNTRY[onda7mer$B_COUNTRY == 76] <- "BRA"
+onda7mer$B_COUNTRY[onda7mer$B_COUNTRY == 858] <- "URU"
+
+
+## Variável Mercosul
+
+
+onda7mer$Q82_MERCOSUR[onda7mer$Q82_MERCOSUR == 1] <- "Confia Totalmente"
+onda7mer$Q82_MERCOSUR[onda7mer$Q82_MERCOSUR == 2] <- "Confia Parcialmente"
+onda7mer$Q82_MERCOSUR[onda7mer$Q82_MERCOSUR == 3] <- "Confia Muito Pouco"
+onda7mer$Q82_MERCOSUR[onda7mer$Q82_MERCOSUR == 4] <- "Não Confia"
+onda7mer$Q82_MERCOSUR[onda7mer$Q82_MERCOSUR == -1] <- "Não Sabe"
+
+
+## Sexo
+
+onda7mer$Q260[onda7mer$Q260 == 1] <- "Masculino"
+onda7mer$Q260[onda7mer$Q260 == 2] <- "Feminino"
+
+
+## Nível Educacional
+
+
+onda7mer$Q275[onda7mer$Q275 == 0] <- "Sem Educação Formal"
+onda7mer$Q275[onda7mer$Q275 == 1] <- "Educação Primária"
+onda7mer$Q275[onda7mer$Q275 == 2] <- "Educação Segundo Grau Incompleta"
+onda7mer$Q275[onda7mer$Q275 == 3] <- "Educação Segundo Grau Completo"
+onda7mer$Q275[onda7mer$Q275 == 4] <- "Educação Curso Técnico"
+onda7mer$Q275[onda7mer$Q275 == 5] <- "Curso Superior de 2 anos"
+onda7mer$Q275[onda7mer$Q275 == 6] <- "Ensino Superior"
+onda7mer$Q275[onda7mer$Q275 == 7] <- "Mestrado"
+onda7mer$Q275[onda7mer$Q275 == 8] <- "Doutorado"
+onda7mer$Q275[onda7mer$Q275 == -1] <- "Não sabe"
+
+
+## Classe Social 
+
+onda7mer$Q287[onda7mer$Q287 == 1] <- "Rico"
+onda7mer$Q287[onda7mer$Q287 == 2] <- "Classe Média Alta"
+onda7mer$Q287[onda7mer$Q287 == 3] <- "Classe Média Baixa"
+onda7mer$Q287[onda7mer$Q287 == 4] <- "Classe de Trabalhadores Manuais"
+onda7mer$Q287[onda7mer$Q287 == 5] <- "Classe Baixa"
+onda7mer$Q287[onda7mer$Q287 == -1] <- "Não Sabe"
+
+```
+
+
+## Renomeando as variáveis 
+
+
+```{r}
+# Onda 5
+
+onda5mer <- rename(onda5mer, "País" = V2, "Mercosul" = V146_06,
+                   "Sexo" = V235, "Idade" = V237, "Escolaridade" = V238, 
+                   "Classe Social" = V252, "Região" = V257)
+
+
+# Onda 6
+
+onda6mer <- rename(onda6mer, "País" = V2, "Mercosul" = V125_06,
+                   "Sexo" =  V240, "Idade" = V242, "Escolaridade" = V248, 
+                   "Classe Social" = V238, "Região" = V256)
+
+
+
+# Onda 7
+
+onda7mer <- rename(onda7mer, "País" = B_COUNTRY, "Mercosul" = Q82_MERCOSUR,
+                   "Sexo" = Q260, "Idade" = X003R, "Escolaridade" = Q275, 
+                   "Classe Social" = Q287, "Região" = N_REGION_ISO)
+
+
+
+# Mudando os valores da Variável Região de cada onda.
+
+# Onda 5 
+
+onda5mer <- onda5mer %>% dplyr::mutate(
+  Região = case_when(
+    Região == 32001 ~ "Capital Federal",
+    Região == 32002 ~ "Grande Buenos Aires",
+    Região == 32007 ~ "Interior",
+    Região == 76013 ~ "AM",
+    Região == 76014 ~ "PA",
+    Região == 76018 ~ "AL",
+    Região == 76019 ~ "BA",
+    Região == 76020 ~ "CE",
+    Região == 76021 ~ "MA",
+    Região == 76022 ~ "PB",
+    Região == 76023 ~ "PE",
+    Região == 76025 ~ "RN",
+    Região == 76027 ~ "DF",
+    Região == 76028 ~ "GO",
+    Região == 76029 ~ "MT",
+    Região == 76030 ~ "MS",
+    Região == 76031 ~ "ES",
+    Região == 76032 ~ "MG",
+    Região == 76033 ~ "RJ",
+    Região == 76034 ~ "SP",
+    Região == 76035 ~ "PR",
+    Região == 76036 ~ "SC",
+    Região == 76037 ~ "RS",
+    Região == 858001 ~ "Montevideo",
+    Região == 858002 ~ "Paysandú",
+    Região == 858003 ~ "Las Piedras",
+    Região == 858004 ~ "Tacuarembó",
+    Região == 858005 ~ "Florida",
+    Região == 858006 ~ "Rocha",
+    Região == 858007 ~ "Pando",
+    Região == 858008 ~ "San Carlos",
+    Região == 858009 ~ "Fray Bentos",
+    Região == 858102 ~ "Salto",
+    Região == 858103 ~ "Maldonado",
+    Região == 858106 ~ "Rivera",
+    Região == 858108 ~ "Melo",
+    Região == 858109 ~ "Mercedes",
+    Região == 858110 ~ "Artigas",
+    Região == 858111 ~ "Minas",
+    Região == 858112 ~ "San Jose de Mayo",
+    Região == 858114 ~ "Durazno",
+    Região == 858115 ~ "La Paz",
+    Região == 858117 ~ "Carmelo",
+    Região == 858119 ~ "Treinta y Tres",
+    Região == 858122 ~ "Colonia del Sacramento",
+    Região == 858123 ~ "Trinidad",
+    Região == 858124 ~ "Canelones",
+    Região == 858125 ~ "Paso de los Toros",
+    Região == 858126 ~ "Juan Antonio Artigas",
+    Região == 858127 ~ "Rosario",
+    Região == 858128 ~ "Punta del Este",
+    Região == 858129 ~ "Quebracho",
+    Região == 858130 ~ "25 de Mayo",
+    Região == 858131 ~ "Paso Bonilla",
+    Região == 858132 ~ "Cerro Pelado",
+    Região == 858133 ~ "Rural"
+  )
+)
+ 
+
+ 
+# Onda 6 
+
+onda6mer <- onda6mer %>% dplyr::mutate(
+  Região = case_when(
+    Região == 32001 ~ "Capital Federal",
+    Região == 32002 ~ "Grande Buenos Aires",
+    Região == 32003 ~ "Córdoba",
+    Região == 32004 ~ "Santa Fé",
+    Região == 32005 ~ "Mendoza",
+    Região == 32006 ~ "Tucumán",
+    Região == 32008 ~ "Catamarca",
+    Região == 32009 ~ "Chaco",
+    Região == 32010 ~ "Chubut",
+    Região == 32011 ~ "Corrientes",
+    Região == 32012 ~ "La Rioja",
+    Região == 32013 ~ "Salta",
+    Região == 76038 ~ "AM",
+    Região == 76039 ~ "PA",
+    Região == 76040 ~ "RO",
+    Região == 76041 ~ "AL",
+    Região == 76042 ~ "BA",
+    Região == 76043 ~ "CE",
+    Região == 76044 ~ "MA",
+    Região == 76045 ~ "PB",
+    Região == 76046 ~ "PE",
+    Região == 76047 ~ "SE",
+    Região == 76048 ~ "DF",
+    Região == 76049 ~ "GO",
+    Região == 76050 ~ "MT",
+    Região == 76051 ~ "MS",
+    Região == 76052 ~ "ES",
+    Região == 76053 ~ "MG",
+    Região == 76054 ~ "RJ",
+    Região == 76055 ~ "SP",
+    Região == 76056 ~ "PR",
+    Região == 76057 ~ "SC",
+    Região == 76058 ~ "RS",
+    Região == 858001 ~ "Montevideo",
+    Região == 858002 ~ "Paysandú",
+    Região == 858004 ~ "Tacuarembó",
+    Região == 858005 ~ "Florida",
+    Região == 858006 ~ "Rocha",
+    Região == 858102 ~ "Salto",
+    Região == 858103 ~ "Maldonado",
+    Região == 858106 ~ "Rivera",
+    Região == 858110 ~ "Artigas",
+    Região == 858112 ~ "San Jose de Mayo",
+    Região == 858114 ~ "Durazno",
+    Região == 858119 ~ "Treinta y Tres",
+    Região == 858122 ~ "Colonia del Sacramento",
+    Região == 858124 ~ "Canelones",
+    Região == 858134 ~ "Cerro Largo",
+    Região == 858135 ~ "Lavalleja",
+    Região == 858136 ~ "Río Negro",
+    Região == 858137 ~ "Soriano",
+    Região == 858138 ~ "Flores",
+  )
+)
+ 
+
+
+# Onda 7 
+
+onda7mer <- onda7mer %>% dplyr::mutate(
+  Região = case_when(
+    Região == 32001 ~ "Capital Federal",
+    Região == 32002 ~ "Grande Buenos Aires",
+    Região == 32003 ~ "Catamarca",
+    Região == 32004 ~ "Chaco",
+    Região == 32005 ~ "Chubut",
+    Região == 32006 ~ "Córdoba",
+    Região == 32007 ~ "Corrientes",
+    Região == 32012 ~ "La Rioja",
+    Região == 32013 ~ "Mendoza",
+    Região == 32017 ~ "Salta",
+    Região == 32019 ~ "San Luis",
+    Região == 32021 ~ "Santa Fe",
+    Região == 32024 ~ "Tucumán",
+    Região == 76001 ~ "DF",
+    Região == 76002 ~ "AC",
+    Região == 76003 ~ "AL",
+    Região == 76005 ~ "AM",
+    Região == 76006 ~ "BA",
+    Região == 76007 ~ "CE",
+    Região == 76008 ~ "ES",
+    Região == 76009 ~ "GO",
+    Região == 76010 ~ "MA",
+    Região == 76011 ~ "MT",
+    Região == 76012 ~ "MS",
+    Região == 76013 ~ "MG",
+    Região == 76014 ~ "PA",
+    Região == 76015 ~ "PB",
+    Região == 76016 ~ "PR",
+    Região == 76017 ~ "PE",
+    Região == 76018 ~ "PI",
+    Região == 76019 ~ "RJ",
+    Região == 76020 ~ "RN",
+    Região == 76021 ~ "RS",
+    Região == 76022 ~ "RO",
+    Região == 76024 ~ "SC",
+    Região == 76025 ~ "SP",
+    Região == 76026 ~ "SE",
+    Região == 76027 ~ "TO",
+    Região == 858001 ~ "Montevideo",
+    Região == 858002 ~ "Canelones",
+    Região == 858003 ~ "Cerro Largo",
+    Região == 858004 ~ "Colonia",
+    Região == 858005 ~ "Durazno",
+    Região == 858006 ~ "Flores",
+    Região == 858007 ~ "Florida",
+    Região == 858008 ~ "Lavalleja",
+    Região == 858009 ~ "Maldonado",
+    Região == 858011 ~ "Paysandu",
+    Região == 858012 ~ "Rio Negro",
+    Região == 858013 ~ "Rivera",
+    Região == 858014 ~ "Rocha",
+    Região == 858016 ~ "Salto",
+    Região == 858017 ~ "San Jose",
+    Região == 858018 ~ "Soriano",
+    Região == 858019 ~ "Tacuarembo",
+    Região == 858020 ~ "Treinta y Tres",
+  )
+)
+ 
+
+ 
+
+
+
+
+ 
+
+
+
+
+
+
+```
+
+
+
+## Gráfico de barras - Variação da confiança no Mercosul por Onda
+
+```{r}
+
+# Criando Data.Frame para construção do Gráfico
+
+# Onda 5
+arg5 <- onda5mer %>% filter(País == "ARG")
+bra5 <- onda5mer %>% filter(País == "BRA")
+uru5 <- onda5mer %>% filter(País == "URU")
+
+
+
+g1arg <- round(prop.table(table(arg5$Mercosul)), 3) * 100
+g1bra <- round(prop.table(table(bra5$Mercosul)), 3) * 100
+g1uru <- round(prop.table(table(uru5$Mercosul)), 3) * 100
+
+
+# Onda 6
+
+arg6 <- onda6mer %>% filter(País == "ARG")
+bra6 <- onda6mer %>% filter(País == "BRA")
+uru6 <- onda6mer %>% filter(País == "URU")
+
+g2arg <- round(prop.table(table(arg6$Mercosul)), 3) * 100
+g2bra <- round(prop.table(table(bra6$Mercosul)), 3) * 100
+g2uru <- round(prop.table(table(uru6$Mercosul)), 3) * 100
+
+
+# Onda 7
+
+arg7 <- onda7mer %>% filter(País == "ARG")
+bra7 <- onda7mer %>% filter(País == "BRA")
+uru7 <- onda7mer %>% filter(País == "URU")
+
+
+
+g3arg <- round(prop.table(table(arg7$Mercosul)), 3) * 100
+g3bra <- round(prop.table(table(bra7$Mercosul)), 3) * 100
+g3uru <- round(prop.table(table(uru7$Mercosul)), 3) * 100
+
+
+g <- data.frame(Mercosul = c("Confia Muito Pouco","Confia Parcialmente",
+                             "Confia Totalmente","Não Confia",
+                             "Não Sabe", "Confia Muito Pouco", "Confia Parcialmente",
+                             "Confia Totalmente", "Não Confia",  "Não Sabe",
+                             "Confia Muito Pouco",
+                             "Confia Parcialmente", "Confia Totalmente", "Não Confia",
+                             "Não Sabe",
+                             "Confia Muito Pouco", "Confia Parcialmente", "Confia Totalmente",
+                             "Não Confia", "Não Sabe", "Confia Muito Pouco",
+                             "Confia Parcialmente", "Confia Totalmente", "Não Confia",
+                             "Não Sabe", "Confia Muito Pouco",
+                             "Confia Parcialmente", "Confia Totalmente", "Não Confia",
+                             "Não Sabe", "Confia Muito Pouco",
+                             "Confia Parcialmente", "Confia Totalmente", "Não Confia",
+                             "Não Sabe", "Confia Muito Pouco",
+                             "Confia Parcialmente", "Confia Totalmente", "Não Confia",
+                             "Não Sabe", "Confia Muito Pouco",
+                             "Confia Parcialmente", "Confia Totalmente", "Não Confia",
+                             "Não Sabe"),
+                País = c("ARG", "ARG", "ARG", "ARG","ARG","BRA","BRA","BRA","BRA", "BRA",
+               "URU", "URU","URU","URU","URU","ARG","ARG","ARG","ARG","ARG","BRA","BRA","BRA",
+                        "BRA","BRA", "URU","URU","URU", "URU", "URU", "ARG", "ARG", "ARG",
+               "ARG","ARG", "BRA","BRA","BRA","BRA", "BRA", "URU","URU","URU", "URU", "URU"),
+                Ondas = c("2005-2009", "2005-2009", "2005-2009",  "2005-2009", "2005-2009",
+                          "2005-2009", "2005-2009",  "2005-2009","2005-2009", "2005-2009",
+                          "2005-2009",  "2005-2009", "2005-2009", "2005-2009", "2005-2009",
+                          "2010-2014","2010-2014", "2010-2014",
+                          "2010-2014","2010-2014","2010-2014", "2010-2014", "2010-2014",
+                          "2010-2014", "2010-2014", "2010-2014", "2010-2014", "2010-2014",
+                          "2010-2014", "2010-2014", "2017-2022", "2017-2022", "2017-2022",
+                          "2017-2022", "2017-2022",
+                         "2017-2022", "2017-2022", "2017-2022", "2017-2022", "2017-2022",
+                         "2017-2022", "2017-2022", "2017-2022", "2017-2022", "2017-2022"),
+                Porcentagem = c(32.0, 31.5, 2.9,  20.0, 13.6, 30.5,
+                       34.1, 6.1, 21.6, 7.7, 35.2, 31.8,
+                       6.5, 26.6,0, 36.2, 29.9, 7.5,
+                       14.8,  11.6, 19.8, 26.8, 2.9,25.5,
+                       25.0, 26.1, 36.1 ,  8.2, 18.0, 11.7, 29.6,
+                       24.9, 5.0, 21.6, 18.9, 16.4, 26.3, 3.2, 19.7, 34.4,
+                       26.4, 27.7, 10.2, 25.2, 10.5))
+
+
+```
+
+## Gráfico Confiança no Mercosul 
+
+
+```{r}
+
+ggplot(g, aes(fill=Ondas, y=Porcentagem, x=Mercosul)) + 
+    geom_bar(position="dodge2", stat="identity") +
+    ggtitle("Confiança no Mercosul") +
+    ggrepel::geom_label_repel(aes(label = Porcentagem), colour = 'black', size = 3.5) +
+    #geom_text(aes(label= Porcentagem), hjust=0, vjust =-0.3, size=3.5)+
+    facet_wrap(~País, scales="free") +
+    theme_ipsum() +
+    theme(legend.position="right") +
+    theme(axis.text.x = element_text(angle=30,hjust=1, size=12, face='bold'))+
+    labs(y = "Porcentagem", x = "Nível de Confiança")
+ 
+```
+
+## Teste de associação Quinta Onda
+
+```{r}
+
+# Tabelas de contingência (todas apresentam associação com alguma variável?)
+
+# Onda 5
+
+## Argentina 
+
+### Mercosul x Escolaridade 
+
+sjt.xtab(var.row = arg5$Mercosul,
+         var.col = c(arg5$Escolaridade),
+         show.exp = TRUE,
+         show.row.prc = TRUE,
+         show.col.prc = TRUE, 
+         encoding = "UTF-8")
+
+### Mercosul x Classe Social
+
+sjt.xtab(var.row = arg5$Mercosul,
+         var.col = arg5$`Classe Social`,
+         show.exp = TRUE,
+         show.row.prc = TRUE,
+         show.col.prc = TRUE, 
+         encoding = "UTF-8")
+
+### Mercosul x Região
+
+arg5$Região <- as.factor(arg5$Região)
+
+sjt.xtab(var.row = arg5$Mercosul,
+         var.col = arg5$Região,
+         show.exp = TRUE,
+         show.row.prc = TRUE,
+         show.col.prc = TRUE, 
+         encoding = "UTF-8")
+
+
+### Escolaridade x Classe Social 
+
+sjt.xtab(var.row = arg5$Escolaridade,
+         var.col = arg5$`Classe Social`,
+         show.exp = TRUE,
+         show.row.prc = TRUE,
+         show.col.prc = TRUE, 
+         encoding = "UTF-8")
+
+### Escolaridade x Região
+
+sjt.xtab(var.row = arg5$Escolaridade,
+         var.col = arg5$Região,
+         show.exp = TRUE,
+         show.row.prc = TRUE,
+         show.col.prc = TRUE, 
+         encoding = "UTF-8")
+
+### Classe Social x Região
+
+arg5$Região <- as.factor(arg5$Região)
+
+sjt.xtab(var.row = arg5$`Classe Social`,
+         var.col = arg5$Região,
+         show.exp = TRUE,
+         show.row.prc = TRUE,
+         show.col.prc = TRUE, 
+         encoding = "UTF-8")
+
+
+## Brasil 
+
+### Escolaridade 
+
+sjt.xtab(var.row = bra5$Mercosul,
+         var.col = bra5$Escolaridade,
+         show.exp = TRUE,
+         show.row.prc = TRUE,
+         show.col.prc = TRUE, 
+         encoding = "UTF-8")
+
+### Classe Social
+
+sjt.xtab(var.row = bra5$Mercosul,
+         var.col = bra5$`Classe Social`,
+         show.exp = TRUE,
+         show.row.prc = TRUE,
+         show.col.prc = TRUE, 
+         encoding = "UTF-8")
+
+
+### Região
+
+bra5$Região <- as.factor(bra5$Região)
+
+sjt.xtab(var.row = bra5$Mercosul,
+         var.col = bra5$Região,
+         show.exp = TRUE,
+         show.row.prc = TRUE,
+         show.col.prc = TRUE, 
+         encoding = "UTF-8")
+
+
+
+### Escolaridade x Classe Social
+
+sjt.xtab(var.row = bra5$Escolaridade,
+         var.col = bra5$`Classe Social`,
+         show.exp = TRUE,
+         show.row.prc = TRUE,
+         show.col.prc = TRUE, 
+         encoding = "UTF-8")
+
+### Escolaridade x Região
+
+sjt.xtab(var.row = bra5$Escolaridade,
+         var.col = bra5$Região,
+         show.exp = TRUE,
+         show.row.prc = TRUE,
+         show.col.prc = TRUE, 
+         encoding = "UTF-8")
+
+
+### Classe Social x Região
+
+bra5$Região <- as.factor(bra5$Região)
+
+sjt.xtab(var.row = bra5$`Classe Social`,
+         var.col = bra5$Região,
+         show.exp = TRUE,
+         show.row.prc = TRUE,
+         show.col.prc = TRUE, 
+         encoding = "UTF-8")
+
+
+## Uruguai 
+
+### Escolaridade 
+
+sjt.xtab(var.row = uru5$Mercosul,
+         var.col = uru5$Escolaridade,
+         show.exp = TRUE,
+         show.row.prc = TRUE,
+         show.col.prc = TRUE, 
+         encoding = "UTF-8")
+
+### Classe Social
+
+sjt.xtab(var.row = uru5$Mercosul,
+         var.col = uru5$`Classe Social`,
+         show.exp = TRUE,
+         show.row.prc = TRUE,
+         show.col.prc = TRUE, 
+         encoding = "UTF-8")
+
+
+### Região
+
+uru5$Região <- as.factor(uru5$Região)
+
+sjt.xtab(var.row = uru5$Mercosul,
+         var.col = uru5$Região,
+         show.exp = TRUE,
+         show.row.prc = TRUE,
+         show.col.prc = TRUE, 
+         encoding = "UTF-8")
+
+
+
+### Escolaridade x Classe Social
+
+sjt.xtab(var.row = uru5$Escolaridade,
+         var.col = uru5$`Classe Social`,
+         show.exp = TRUE,
+         show.row.prc = TRUE,
+         show.col.prc = TRUE, 
+         encoding = "UTF-8")
+
+### Escolaridade x Região
+
+sjt.xtab(var.row = uru5$Escolaridade,
+         var.col = uru5$Região,
+         show.exp = TRUE,
+         show.row.prc = TRUE,
+         show.col.prc = TRUE, 
+         encoding = "UTF-8")
+
+
+### Classe Social x Região
+
+uru5$Região <- as.factor(uru5$Região)
+
+sjt.xtab(var.row = uru5$`Classe Social`,
+         var.col = uru5$Região,
+         show.exp = TRUE,
+         show.row.prc = TRUE,
+         show.col.prc = TRUE, 
+         encoding = "UTF-8")
+
+
+```
+
+## Teste de associação Sexta Onda
+
+```{r}
+
+# Tabelas de contingência (todas apresentam associação com alguma variável?)
+
+# Onda 6
+
+## Argentina 
+
+### Escolaridade 
+
+sjt.xtab(var.row = arg6$Mercosul,
+         var.col = arg6$Escolaridade,
+         show.exp = TRUE,
+         show.row.prc = TRUE,
+         show.col.prc = TRUE, 
+         encoding = "UTF-8")
+
+### Classe Social
+
+sjt.xtab(var.row = arg6$Mercosul,
+         var.col = arg6$`Classe Social`,
+         show.exp = TRUE,
+         show.row.prc = TRUE,
+         show.col.prc = TRUE, 
+         encoding = "UTF-8")
+
+### Região
+
+arg6$Região <- as.factor(arg6$Região)
+
+sjt.xtab(var.row = arg6$Mercosul,
+         var.col = arg6$Região,
+         show.exp = TRUE,
+         show.row.prc = TRUE,
+         show.col.prc = TRUE, 
+         encoding = "UTF-8")
+
+## Brasil 
+
+### Escolaridade 
+
+sjt.xtab(var.row = bra6$Mercosul,
+         var.col = bra6$Escolaridade,
+         show.exp = TRUE,
+         show.row.prc = TRUE,
+         show.col.prc = TRUE, 
+         encoding = "UTF-8")
+
+### Classe Social
+
+sjt.xtab(var.row = bra6$Mercosul,
+         var.col = bra6$`Classe Social`,
+         show.exp = TRUE,
+         show.row.prc = TRUE,
+         show.col.prc = TRUE, 
+         encoding = "UTF-8")
+
+
+### Região
+
+bra6$Região <- as.factor(bra6$Região)
+
+sjt.xtab(var.row = bra6$Mercosul,
+         var.col = bra6$Região,
+         show.exp = TRUE,
+         show.row.prc = TRUE,
+         show.col.prc = TRUE, 
+         encoding = "UTF-8")
+
+
+## Uruguai 
+
+### Escolaridade 
+
+sjt.xtab(var.row = uru6$Mercosul,
+         var.col = uru6$Escolaridade,
+         show.exp = TRUE,
+         show.row.prc = TRUE,
+         show.col.prc = TRUE, 
+         encoding = "UTF-8")
+
+### Classe Social
+
+sjt.xtab(var.row = uru6$Mercosul,
+         var.col = uru6$`Classe Social`,
+         show.exp = TRUE,
+         show.row.prc = TRUE,
+         show.col.prc = TRUE, 
+         encoding = "UTF-8")
+
+
+### Região
+
+uru6$Região <- as.factor(uru6$Região)
+
+sjt.xtab(var.row = uru6$Mercosul,
+         var.col = uru6$Região,
+         show.exp = TRUE,
+         show.row.prc = TRUE,
+         show.col.prc = TRUE, 
+         encoding = "UTF-8")
+
+
+```
+
+
+## Teste de associação Sétima Onda
+
+```{r}
+
+# Tabelas de contingência (todas apresentam associação com alguma variável?)
+
+# Onda 7
+
+## Argentina 
+
+### Escolaridade 
+
+sjt.xtab(var.row = arg7$Mercosul,
+         var.col = arg7$Escolaridade,
+         show.exp = TRUE,
+         show.row.prc = TRUE,
+         show.col.prc = TRUE, 
+         encoding = "UTF-8")
+
+### Classe Social
+
+sjt.xtab(var.row = arg7$Mercosul,
+         var.col = arg7$`Classe Social`,
+         show.exp = TRUE,
+         show.row.prc = TRUE,
+         show.col.prc = TRUE, 
+         encoding = "UTF-8")
+
+### Região
+
+arg7$Região <- as.factor(arg7$Região)
+
+sjt.xtab(var.row = arg7$Mercosul,
+         var.col = arg7$Região,
+         show.exp = TRUE,
+         show.row.prc = TRUE,
+         show.col.prc = TRUE, 
+         encoding = "UTF-8")
+
+## Brasil 
+
+### Escolaridade 
+
+sjt.xtab(var.row = bra7$Mercosul,
+         var.col = bra7$Escolaridade,
+         show.exp = TRUE,
+         show.row.prc = TRUE,
+         show.col.prc = TRUE, 
+         encoding = "UTF-8")
+
+### Classe Social
+
+sjt.xtab(var.row = bra7$Mercosul,
+         var.col = bra7$`Classe Social`,
+         show.exp = TRUE,
+         show.row.prc = TRUE,
+         show.col.prc = TRUE, 
+         encoding = "UTF-8")
+
+
+### Região
+
+bra7$Região <- as.factor(bra7$Região)
+
+sjt.xtab(var.row = bra7$Mercosul,
+         var.col = bra7$Região,
+         show.exp = TRUE,
+         show.row.prc = TRUE,
+         show.col.prc = TRUE, 
+         encoding = "UTF-8")
+
+
+## Uruguai 
+
+### Escolaridade 
+
+sjt.xtab(var.row = uru7$Mercosul,
+         var.col = uru7$Escolaridade,
+         show.exp = TRUE,
+         show.row.prc = TRUE,
+         show.col.prc = TRUE, 
+         encoding = "UTF-8")
+
+### Classe Social
+
+sjt.xtab(var.row = uru7$Mercosul,
+         var.col = uru7$`Classe Social`,
+         show.exp = TRUE,
+         show.row.prc = TRUE,
+         show.col.prc = TRUE, 
+         encoding = "UTF-8")
+
+
+### Região
+
+uru7$Região <- as.factor(uru7$Região)
+
+sjt.xtab(var.row = uru7$Mercosul,
+         var.col = uru7$Região,
+         show.exp = TRUE,
+         show.row.prc = TRUE,
+         show.col.prc = TRUE, 
+         encoding = "UTF-8")
+
+
+```
+
+
+# Plotando análise de correspondência com a variável Confiança no Mercosul - Argentina - Quinta Onda
+
+```{r}
+
+# Argentina
+
+## Mercosul x Escolaridade
+
+arg5$Mercosul <- as.factor(arg5$Mercosul)
+arg5$Escolaridade <- as.factor(arg5$Escolaridade)
+
+# Mercosul e Escolaridade
+t = data.frame(arg5$Mercosul, arg5$Escolaridade)
+
+# Vamos gerar a ACM
+ACM <- dudi.acm(t, scannf = FALSE)
+
+# Analisando as variâncias de cada dimensão
+perc_variancia <- (ACM$eig / sum(ACM$eig)) * 100
+paste0(round(perc_variancia,2),"%")
+
+# Quantidade de categorias por variável
+quant_categorias <- apply(t,
+                          MARGIN =  2,
+                          FUN = function(x) nlevels(as.factor(x)))
+
+# Consolidando as coordenadas-padrão obtidas por meio da matriz binária
+df_ACM <- data.frame(ACM$c1, Variável = rep(names(quant_categorias),
+                                            quant_categorias))
+
+# Plotando o mapa perceptual
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  ggplot(aes(x = CS1, y = CS2, label = Categoria, color = Variável)) +
+  geom_point() +
+  ggtitle("Análise de correspondência da variável Confiança no Mercosul com Escolaridade na Argentina (2005-2009)") +
+  ggrepel::geom_label_repel() +
+  geom_vline(aes(xintercept = 0), linetype = "longdash", color = "grey48") +
+  geom_hline(aes(yintercept = 0), linetype = "longdash", color = "grey48") +
+  labs(x = paste("Dimensão 1:", paste0(round(perc_variancia[1], 2), "%")),
+       y = paste("Dimensão 2:", paste0(round(perc_variancia[2], 2), "%"))) +
+  theme_bw()
+
+
+## Mercosul x Classe Social
+
+
+arg5$`Classe Social` <- as.factor(arg5$`Classe Social`)
+
+# Mercosul e Escolaridade
+t = data.frame(arg5$Mercosul, arg5$`Classe Social`)
+
+# Vamos gerar a ACM
+ACM <- dudi.acm(t, scannf = FALSE)
+
+# Analisando as variâncias de cada dimensão
+perc_variancia <- (ACM$eig / sum(ACM$eig)) * 100
+paste0(round(perc_variancia,2),"%")
+
+# Quantidade de categorias por variável
+quant_categorias <- apply(t,
+                          MARGIN =  2,
+                          FUN = function(x) nlevels(as.factor(x)))
+
+# Consolidando as coordenadas-padrão obtidas por meio da matriz binária
+df_ACM <- data.frame(ACM$c1, Variável = rep(names(quant_categorias),
+                                            quant_categorias))
+
+# Plotando o mapa perceptual
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  ggplot(aes(x = CS1, y = CS2, label = Categoria, color = Variável)) +
+  geom_point() +
+  ggtitle("Análise de correspondência da variável Confiança no Mercosul com Classe Social na Argentina (2005-2009)") +
+  ggrepel::geom_label_repel() +
+  geom_vline(aes(xintercept = 0), linetype = "longdash", color = "grey48") +
+  geom_hline(aes(yintercept = 0), linetype = "longdash", color = "grey48") +
+  labs(x = paste("Dimensão 1:", paste0(round(perc_variancia[1], 2), "%")),
+       y = paste("Dimensão 2:", paste0(round(perc_variancia[2], 2), "%"))) +
+  theme_bw()
+
+## Mercosul x Região 
+
+
+arg5$Região <- as.factor(arg5$Região)
+
+table(arg5$Região)
+
+# Mercosul e Escolaridade
+t = data.frame(arg5$Mercosul, arg5$Região)
+
+# Vamos gerar a ACM
+ACM <- dudi.acm(t, scannf = FALSE)
+
+# Analisando as variâncias de cada dimensão
+perc_variancia <- (ACM$eig / sum(ACM$eig)) * 100
+paste0(round(perc_variancia,2),"%")
+
+# Quantidade de categorias por variável
+quant_categorias <- apply(t,
+                          MARGIN =  2,
+                          FUN = function(x) nlevels(as.factor(x)))
+
+# Consolidando as coordenadas-padrão obtidas por meio da matriz binária
+df_ACM <- data.frame(ACM$c1, Variável = rep(names(quant_categorias),
+                                            quant_categorias))
+
+# Plotando o mapa perceptual
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  ggplot(aes(x = CS1, y = CS2, label = Categoria, color = Variável)) +
+  geom_point() +
+  ggtitle("Análise de correspondência da variável Confiança no Mercosul com Região na Argentina (2005-2009)") +
+  ggrepel::geom_label_repel() +
+  geom_vline(aes(xintercept = 0), linetype = "longdash", color = "grey48") +
+  geom_hline(aes(yintercept = 0), linetype = "longdash", color = "grey48") +
+  labs(x = paste("Dimensão 1:", paste0(round(perc_variancia[1], 2), "%")),
+       y = paste("Dimensão 2:", paste0(round(perc_variancia[2], 2), "%"))) +
+  theme_bw()
+
+
+
+
+```
+
+
+# Plotando análise de correspondência com a variável Confiança no Mercosul - Brasil - Quinta Onda
+
+```{r}
+
+# Brasil
+
+## Mercosul x Escolaridade
+
+bra5$Mercosul <- as.factor(bra5$Mercosul)
+bra5$Escolaridade <- as.factor(bra5$Escolaridade)
+
+# Mercosul e Escolaridade
+t = data.frame(bra5$Mercosul, bra5$Escolaridade)
+
+# Vamos gerar a ACM
+ACM <- dudi.acm(t, scannf = FALSE)
+
+# Analisando as variâncias de cada dimensão
+perc_variancia <- (ACM$eig / sum(ACM$eig)) * 100
+paste0(round(perc_variancia,2),"%")
+
+# Quantidade de categorias por variável
+quant_categorias <- apply(t,
+                          MARGIN =  2,
+                          FUN = function(x) nlevels(as.factor(x)))
+
+# Consolidando as coordenadas-padrão obtidas por meio da matriz binária
+df_ACM <- data.frame(ACM$c1, Variável = rep(names(quant_categorias),
+                                            quant_categorias))
+
+# Plotando o mapa perceptual
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  ggplot(aes(x = CS1, y = CS2, label = Categoria, color = Variável)) +
+  geom_point() +
+  ggtitle("Análise de correspondência da variável Confiança no Mercosul com Escolaridade no Brasil (2005-2009)") +
+  ggrepel::geom_label_repel() +
+  geom_vline(aes(xintercept = 0), linetype = "longdash", color = "grey48") +
+  geom_hline(aes(yintercept = 0), linetype = "longdash", color = "grey48") +
+  labs(x = paste("Dimensão 1:", paste0(round(perc_variancia[1], 2), "%")),
+       y = paste("Dimensão 2:", paste0(round(perc_variancia[2], 2), "%"))) +
+  theme_bw()
+
+
+## Mercosul x Classe Social
+
+
+bra5$`Classe Social` <- as.factor(bra5$`Classe Social`)
+
+# Mercosul e Classe Social
+t = data.frame(bra5$Mercosul, bra5$`Classe Social`)
+
+# Vamos gerar a ACM
+ACM <- dudi.acm(t, scannf = FALSE)
+
+# Analisando as variâncias de cada dimensão
+perc_variancia <- (ACM$eig / sum(ACM$eig)) * 100
+paste0(round(perc_variancia,2),"%")
+
+# Quantidade de categorias por variável
+quant_categorias <- apply(t,
+                          MARGIN =  2,
+                          FUN = function(x) nlevels(as.factor(x)))
+
+# Consolidando as coordenadas-padrão obtidas por meio da matriz binária
+df_ACM <- data.frame(ACM$c1, Variável = rep(names(quant_categorias),
+                                            quant_categorias))
+
+# Plotando o mapa perceptual
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  ggplot(aes(x = CS1, y = CS2, label = Categoria, color = Variável)) +
+  geom_point() +
+  ggtitle("Análise de correspondência da variável Confiança no Mercosul com Classe Social no Brasil (2005-2009)") +
+  ggrepel::geom_label_repel() +
+  geom_vline(aes(xintercept = 0), linetype = "longdash", color = "grey48") +
+  geom_hline(aes(yintercept = 0), linetype = "longdash", color = "grey48") +
+  labs(x = paste("Dimensão 1:", paste0(round(perc_variancia[1], 2), "%")),
+       y = paste("Dimensão 2:", paste0(round(perc_variancia[2], 2), "%"))) +
+  theme_bw()
+
+## Mercosul x Região 
+
+
+bra5$Região <- as.factor(bra5$Região)
+
+# Mercosul e Escolaridade
+t = data.frame(bra5$Mercosul, bra5$Região)
+
+# Vamos gerar a ACM
+ACM <- dudi.acm(t, scannf = FALSE)
+
+# Analisando as variâncias de cada dimensão
+perc_variancia <- (ACM$eig / sum(ACM$eig)) * 100
+paste0(round(perc_variancia,2),"%")
+
+# Quantidade de categorias por variável
+quant_categorias <- apply(t,
+                          MARGIN =  2,
+                          FUN = function(x) nlevels(as.factor(x)))
+
+# Consolidando as coordenadas-padrão obtidas por meio da matriz binária
+df_ACM <- data.frame(ACM$c1, Variável = rep(names(quant_categorias),
+                                            quant_categorias))
+
+# Plotando o mapa perceptual
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  ggplot(aes(x = CS1, y = CS2, label = Categoria, color = Variável)) +
+  geom_point() +
+  ggtitle("Análise de correspondência da variável Confiança no Mercosul com Região no Brasil (2005-2009)") +
+  ggrepel::geom_label_repel() +
+  geom_vline(aes(xintercept = 0), linetype = "longdash", color = "grey48") +
+  geom_hline(aes(yintercept = 0), linetype = "longdash", color = "grey48") +
+  labs(x = paste("Dimensão 1:", paste0(round(perc_variancia[1], 2), "%")),
+       y = paste("Dimensão 2:", paste0(round(perc_variancia[2], 2), "%"))) +
+  theme_bw()
+
+
+
+
+```
+
+# Plotando análise de correspondência com a variável Confiança no Mercosul - Uruguai - Quinta Onda
+
+```{r}
+
+# Uruguai
+
+
+## Mercosul x Classe Social
+
+uru5$Mercosul <- as.factor(uru5$Mercosul)
+uru5$`Classe Social` <- as.factor(uru5$`Classe Social`)
+
+# Mercosul e Classe Social
+t = data.frame(uru5$Mercosul, uru5$`Classe Social`)
+
+# Vamos gerar a ACM
+ACM <- dudi.acm(t, scannf = FALSE)
+
+# Analisando as variâncias de cada dimensão
+perc_variancia <- (ACM$eig / sum(ACM$eig)) * 100
+paste0(round(perc_variancia,2),"%")
+
+# Quantidade de categorias por variável
+quant_categorias <- apply(t,
+                          MARGIN =  2,
+                          FUN = function(x) nlevels(as.factor(x)))
+
+# Consolidando as coordenadas-padrão obtidas por meio da matriz binária
+df_ACM <- data.frame(ACM$c1, Variável = rep(names(quant_categorias),
+                                            quant_categorias))
+
+# Plotando o mapa perceptual
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  ggplot(aes(x = CS1, y = CS2, label = Categoria, color = Variável)) +
+  geom_point() +
+  ggtitle("Análise de correspondência da variável Confiança no Mercosul com Classe Social no Uruguai (2005-2009)") +
+  ggrepel::geom_label_repel() +
+  geom_vline(aes(xintercept = 0), linetype = "longdash", color = "grey48") +
+  geom_hline(aes(yintercept = 0), linetype = "longdash", color = "grey48") +
+  labs(x = paste("Dimensão 1:", paste0(round(perc_variancia[1], 2), "%")),
+       y = paste("Dimensão 2:", paste0(round(perc_variancia[2], 2), "%"))) +
+  theme_bw()
+
+## Mercosul x Região 
+
+uru5$Região <- as.factor(uru5$Região)
+
+# Mercosul e Escolaridade
+t = data.frame(uru5$Mercosul, uru5$Região)
+
+# Vamos gerar a ACM
+ACM <- dudi.acm(t, scannf = FALSE)
+
+# Analisando as variâncias de cada dimensão
+perc_variancia <- (ACM$eig / sum(ACM$eig)) * 100
+paste0(round(perc_variancia,2),"%")
+
+# Quantidade de categorias por variável
+quant_categorias <- apply(t,
+                          MARGIN =  2,
+                          FUN = function(x) nlevels(as.factor(x)))
+
+# Consolidando as coordenadas-padrão obtidas por meio da matriz binária
+df_ACM <- data.frame(ACM$c1, Variável = rep(names(quant_categorias),
+                                            quant_categorias))
+
+# Plotando o mapa perceptual
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  ggplot(aes(x = CS1, y = CS2, label = Categoria, color = Variável)) +
+  geom_point() +
+  ggtitle("Análise de correspondência da variável Confiança no Mercosul com Região no Uruguai (2005-2009)") +
+  ggrepel::geom_label_repel() +
+  geom_vline(aes(xintercept = 0), linetype = "longdash", color = "grey48") +
+  geom_hline(aes(yintercept = 0), linetype = "longdash", color = "grey48") +
+  labs(x = paste("Dimensão 1:", paste0(round(perc_variancia[1], 2), "%")),
+       y = paste("Dimensão 2:", paste0(round(perc_variancia[2], 2), "%"))) +
+  theme_bw()
+
+
+
+
+```
+
+
+
+
+# Plotando análise de correspondência com a variável Confiança no Mercosul - Argentina - Sexta Onda
+
+```{r}
+
+# Argentina
+
+## Mercosul x Escolaridade
+
+arg6$Mercosul <- as.factor(arg6$Mercosul)
+arg6$Escolaridade <- as.factor(arg6$Escolaridade)
+
+# Mercosul e Escolaridade
+t = data.frame(arg6$Mercosul, arg6$Escolaridade)
+
+# Vamos gerar a ACM
+ACM <- dudi.acm(t, scannf = FALSE)
+
+# Analisando as variâncias de cada dimensão
+perc_variancia <- (ACM$eig / sum(ACM$eig)) * 100
+paste0(round(perc_variancia,2),"%")
+
+# Quantidade de categorias por variável
+quant_categorias <- apply(t,
+                          MARGIN =  2,
+                          FUN = function(x) nlevels(as.factor(x)))
+
+# Consolidando as coordenadas-padrão obtidas por meio da matriz binária
+df_ACM <- data.frame(ACM$c1, Variável = rep(names(quant_categorias),
+                                            quant_categorias))
+
+# Plotando o mapa perceptual
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  ggplot(aes(x = CS1, y = CS2, label = Categoria, color = Variável)) +
+  geom_point() +
+  ggtitle("Análise de correspondência da variável Confiança no Mercosul com Escolaridade na Argentina (2010-2014)") +
+  ggrepel::geom_label_repel() +
+  geom_vline(aes(xintercept = 0), linetype = "longdash", color = "grey48") +
+  geom_hline(aes(yintercept = 0), linetype = "longdash", color = "grey48") +
+  labs(x = paste("Dimensão 1:", paste0(round(perc_variancia[1], 2), "%")),
+       y = paste("Dimensão 2:", paste0(round(perc_variancia[2], 2), "%"))) +
+  theme_bw()
+
+
+## Mercosul x Classe Social
+
+
+arg6$`Classe Social` <- as.factor(arg6$`Classe Social`)
+
+# Mercosul e Escolaridade
+t = data.frame(arg6$Mercosul, arg6$`Classe Social`)
+
+# Vamos gerar a ACM
+ACM <- dudi.acm(t, scannf = FALSE)
+
+# Analisando as variâncias de cada dimensão
+perc_variancia <- (ACM$eig / sum(ACM$eig)) * 100
+paste0(round(perc_variancia,2),"%")
+
+# Quantidade de categorias por variável
+quant_categorias <- apply(t,
+                          MARGIN =  2,
+                          FUN = function(x) nlevels(as.factor(x)))
+
+# Consolidando as coordenadas-padrão obtidas por meio da matriz binária
+df_ACM <- data.frame(ACM$c1, Variável = rep(names(quant_categorias),
+                                            quant_categorias))
+
+# Plotando o mapa perceptual
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  ggplot(aes(x = CS1, y = CS2, label = Categoria, color = Variável)) +
+  geom_point() +
+  ggtitle("Análise de correspondência da variável Confiança no Mercosul com Classe Social na Argentina (2010-2014)") +
+  ggrepel::geom_label_repel() +
+  geom_vline(aes(xintercept = 0), linetype = "longdash", color = "grey48") +
+  geom_hline(aes(yintercept = 0), linetype = "longdash", color = "grey48") +
+  labs(x = paste("Dimensão 1:", paste0(round(perc_variancia[1], 2), "%")),
+       y = paste("Dimensão 2:", paste0(round(perc_variancia[2], 2), "%"))) +
+  theme_bw()
+
+## Mercosul x Região 
+
+
+arg6$Região <- as.factor(arg6$Região)
+
+
+
+# Mercosul e Escolaridade
+t = data.frame(arg6$Mercosul, arg6$Região)
+
+# Vamos gerar a ACM
+ACM <- dudi.acm(t, scannf = FALSE)
+
+# Analisando as variâncias de cada dimensão
+perc_variancia <- (ACM$eig / sum(ACM$eig)) * 100
+paste0(round(perc_variancia,2),"%")
+
+# Quantidade de categorias por variável
+quant_categorias <- apply(t,
+                          MARGIN =  2,
+                          FUN = function(x) nlevels(as.factor(x)))
+
+# Consolidando as coordenadas-padrão obtidas por meio da matriz binária
+df_ACM <- data.frame(ACM$c1, Variável = rep(names(quant_categorias),
+                                            quant_categorias))
+
+# Plotando o mapa perceptual
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  ggplot(aes(x = CS1, y = CS2, label = Categoria, color = Variável)) +
+  geom_point() +
+  ggtitle("Análise de correspondência da variável Confiança no Mercosul com Região na Argentina (2010-2014)") +
+  ggrepel::geom_label_repel() +
+  geom_vline(aes(xintercept = 0), linetype = "longdash", color = "grey48") +
+  geom_hline(aes(yintercept = 0), linetype = "longdash", color = "grey48") +
+  labs(x = paste("Dimensão 1:", paste0(round(perc_variancia[1], 2), "%")),
+       y = paste("Dimensão 2:", paste0(round(perc_variancia[2], 2), "%"))) +
+  theme_bw()
+
+
+
+
+```
+
+
+# Plotando análise de correspondência com a variável Confiança no Mercosul - Brasil - Sexta Onda
+
+```{r}
+
+# Brasil
+
+## Mercosul x Escolaridade
+
+bra6$Mercosul <- as.factor(bra6$Mercosul)
+bra6$Escolaridade <- as.factor(bra6$Escolaridade)
+
+# Mercosul e Escolaridade
+t = data.frame(bra6$Mercosul, bra6$Escolaridade)
+
+# Vamos gerar a ACM
+ACM <- dudi.acm(t, scannf = FALSE)
+
+# Analisando as variâncias de cada dimensão
+perc_variancia <- (ACM$eig / sum(ACM$eig)) * 100
+paste0(round(perc_variancia,2),"%")
+
+# Quantidade de categorias por variável
+quant_categorias <- apply(t,
+                          MARGIN =  2,
+                          FUN = function(x) nlevels(as.factor(x)))
+
+# Consolidando as coordenadas-padrão obtidas por meio da matriz binária
+df_ACM <- data.frame(ACM$c1, Variável = rep(names(quant_categorias),
+                                            quant_categorias))
+
+# Plotando o mapa perceptual
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  ggplot(aes(x = CS1, y = CS2, label = Categoria, color = Variável)) +
+  geom_point() +
+  ggtitle("Análise de correspondência da variável Confiança no Mercosul com Escolaridade no Brasil (2010-2014)") +
+  ggrepel::geom_label_repel() +
+  geom_vline(aes(xintercept = 0), linetype = "longdash", color = "grey48") +
+  geom_hline(aes(yintercept = 0), linetype = "longdash", color = "grey48") +
+  labs(x = paste("Dimensão 1:", paste0(round(perc_variancia[1], 2), "%")),
+       y = paste("Dimensão 2:", paste0(round(perc_variancia[2], 2), "%"))) +
+  theme_bw()
+
+
+## Mercosul x Classe Social
+
+
+bra6$`Classe Social` <- as.factor(bra6$`Classe Social`)
+
+# Mercosul e Classe Social
+t = data.frame(bra6$Mercosul, bra6$`Classe Social`)
+
+# Vamos gerar a ACM
+ACM <- dudi.acm(t, scannf = FALSE)
+
+# Analisando as variâncias de cada dimensão
+perc_variancia <- (ACM$eig / sum(ACM$eig)) * 100
+paste0(round(perc_variancia,2),"%")
+
+# Quantidade de categorias por variável
+quant_categorias <- apply(t,
+                          MARGIN =  2,
+                          FUN = function(x) nlevels(as.factor(x)))
+
+# Consolidando as coordenadas-padrão obtidas por meio da matriz binária
+df_ACM <- data.frame(ACM$c1, Variável = rep(names(quant_categorias),
+                                            quant_categorias))
+
+# Plotando o mapa perceptual
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  ggplot(aes(x = CS1, y = CS2, label = Categoria, color = Variável)) +
+  geom_point() +
+  ggtitle("Análise de correspondência da variável Confiança no Mercosul com Classe Social no Brasil (2010-2014)") +
+  ggrepel::geom_label_repel() +
+  geom_vline(aes(xintercept = 0), linetype = "longdash", color = "grey48") +
+  geom_hline(aes(yintercept = 0), linetype = "longdash", color = "grey48") +
+  labs(x = paste("Dimensão 1:", paste0(round(perc_variancia[1], 2), "%")),
+       y = paste("Dimensão 2:", paste0(round(perc_variancia[2], 2), "%"))) +
+  theme_bw()
+
+## Mercosul x Região 
+
+
+bra6$Região <- as.factor(bra6$Região)
+
+# Mercosul e Escolaridade
+t = data.frame(bra6$Mercosul, bra6$Região)
+
+# Vamos gerar a ACM
+ACM <- dudi.acm(t, scannf = FALSE)
+
+# Analisando as variâncias de cada dimensão
+perc_variancia <- (ACM$eig / sum(ACM$eig)) * 100
+paste0(round(perc_variancia,2),"%")
+
+# Quantidade de categorias por variável
+quant_categorias <- apply(t,
+                          MARGIN =  2,
+                          FUN = function(x) nlevels(as.factor(x)))
+
+# Consolidando as coordenadas-padrão obtidas por meio da matriz binária
+df_ACM <- data.frame(ACM$c1, Variável = rep(names(quant_categorias),
+                                            quant_categorias))
+
+# Plotando o mapa perceptual
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  ggplot(aes(x = CS1, y = CS2, label = Categoria, color = Variável)) +
+  geom_point() +
+  ggtitle("Análise de correspondência da variável Confiança no Mercosul com Região no Brasil (2010-2014)") +
+  ggrepel::geom_label_repel() +
+  geom_vline(aes(xintercept = 0), linetype = "longdash", color = "grey48") +
+  geom_hline(aes(yintercept = 0), linetype = "longdash", color = "grey48") +
+  labs(x = paste("Dimensão 1:", paste0(round(perc_variancia[1], 2), "%")),
+       y = paste("Dimensão 2:", paste0(round(perc_variancia[2], 2), "%"))) +
+  theme_bw()
+
+
+
+
+```
+
+# Plotando análise de correspondência com a variável Confiança no Mercosul - Uruguai - Sexta Onda
+
+```{r}
+
+# Uruguai
+
+## Mercosul x Escolaridade
+
+uru6$Mercosul <- as.factor(uru6$Mercosul)
+uru6$Escolaridade <- as.factor(uru6$Escolaridade)
+
+# Mercosul e Escolaridade
+t = data.frame(uru6$Mercosul, uru6$Escolaridade)
+
+# Vamos gerar a ACM
+ACM <- dudi.acm(t, scannf = FALSE)
+
+# Analisando as variâncias de cada dimensão
+perc_variancia <- (ACM$eig / sum(ACM$eig)) * 100
+paste0(round(perc_variancia,2),"%")
+
+# Quantidade de categorias por variável
+quant_categorias <- apply(t,
+                          MARGIN =  2,
+                          FUN = function(x) nlevels(as.factor(x)))
+
+# Consolidando as coordenadas-padrão obtidas por meio da matriz binária
+df_ACM <- data.frame(ACM$c1, Variável = rep(names(quant_categorias),
+                                            quant_categorias))
+
+# Plotando o mapa perceptual
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  ggplot(aes(x = CS1, y = CS2, label = Categoria, color = Variável)) +
+  geom_point() +
+  ggtitle("Análise de correspondência da variável Confiança no Mercosul com Escolaridade no Uruguai (2010-2014)") +
+  ggrepel::geom_label_repel() +
+  geom_vline(aes(xintercept = 0), linetype = "longdash", color = "grey48") +
+  geom_hline(aes(yintercept = 0), linetype = "longdash", color = "grey48") +
+  labs(x = paste("Dimensão 1:", paste0(round(perc_variancia[1], 2), "%")),
+       y = paste("Dimensão 2:", paste0(round(perc_variancia[2], 2), "%"))) +
+  theme_bw()
+
+
+
+
+## Mercosul x Classe Social
+
+
+uru6$`Classe Social` <- as.factor(uru6$`Classe Social`)
+
+# Mercosul e Classe Social
+t = data.frame(uru6$Mercosul, uru6$`Classe Social`)
+
+# Vamos gerar a ACM
+ACM <- dudi.acm(t, scannf = FALSE)
+
+# Analisando as variâncias de cada dimensão
+perc_variancia <- (ACM$eig / sum(ACM$eig)) * 100
+paste0(round(perc_variancia,2),"%")
+
+# Quantidade de categorias por variável
+quant_categorias <- apply(t,
+                          MARGIN =  2,
+                          FUN = function(x) nlevels(as.factor(x)))
+
+# Consolidando as coordenadas-padrão obtidas por meio da matriz binária
+df_ACM <- data.frame(ACM$c1, Variável = rep(names(quant_categorias),
+                                            quant_categorias))
+
+# Plotando o mapa perceptual
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  ggplot(aes(x = CS1, y = CS2, label = Categoria, color = Variável)) +
+  geom_point() +
+  ggtitle("Análise de correspondência da variável Confiança no Mercosul com Classe Social no Uruguai (2010-2014)") +
+  ggrepel::geom_label_repel() +
+  geom_vline(aes(xintercept = 0), linetype = "longdash", color = "grey48") +
+  geom_hline(aes(yintercept = 0), linetype = "longdash", color = "grey48") +
+  labs(x = paste("Dimensão 1:", paste0(round(perc_variancia[1], 2), "%")),
+       y = paste("Dimensão 2:", paste0(round(perc_variancia[2], 2), "%"))) +
+  theme_bw()
+
+## Mercosul x Região 
+
+uru6$Região <- as.factor(uru6$Região)
+
+# Mercosul e Escolaridade
+t = data.frame(uru6$Mercosul, uru6$Região)
+
+# Vamos gerar a ACM
+ACM <- dudi.acm(t, scannf = FALSE)
+
+# Analisando as variâncias de cada dimensão
+perc_variancia <- (ACM$eig / sum(ACM$eig)) * 100
+paste0(round(perc_variancia,2),"%")
+
+# Quantidade de categorias por variável
+quant_categorias <- apply(t,
+                          MARGIN =  2,
+                          FUN = function(x) nlevels(as.factor(x)))
+
+# Consolidando as coordenadas-padrão obtidas por meio da matriz binária
+df_ACM <- data.frame(ACM$c1, Variável = rep(names(quant_categorias),
+                                            quant_categorias))
+
+# Plotando o mapa perceptual
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  ggplot(aes(x = CS1, y = CS2, label = Categoria, color = Variável)) +
+  geom_point() +
+  ggtitle("Análise de correspondência da variável Confiança no Mercosul com Região no Uruguai (2010-2014)") +
+  ggrepel::geom_label_repel() +
+  geom_vline(aes(xintercept = 0), linetype = "longdash", color = "grey48") +
+  geom_hline(aes(yintercept = 0), linetype = "longdash", color = "grey48") +
+  labs(x = paste("Dimensão 1:", paste0(round(perc_variancia[1], 2), "%")),
+       y = paste("Dimensão 2:", paste0(round(perc_variancia[2], 2), "%"))) +
+  theme_bw()
+
+
+
+
+```
+
+
+
+
+# Plotando análise de correspondência com a variável Confiança no Mercosul - Argentina - Sétima Onda
+
+```{r}
+
+# Argentina
+
+## Mercosul x Escolaridade
+
+arg7$Mercosul <- as.factor(arg7$Mercosul)
+arg7$Escolaridade <- as.factor(arg7$Escolaridade)
+
+# Mercosul e Escolaridade
+t = data.frame(arg7$Mercosul, arg7$Escolaridade)
+
+# Vamos gerar a ACM
+ACM <- dudi.acm(t, scannf = FALSE)
+
+# Analisando as variâncias de cada dimensão
+perc_variancia <- (ACM$eig / sum(ACM$eig)) * 100
+paste0(round(perc_variancia,2),"%")
+
+# Quantidade de categorias por variável
+quant_categorias <- apply(t,
+                          MARGIN =  2,
+                          FUN = function(x) nlevels(as.factor(x)))
+
+# Consolidando as coordenadas-padrão obtidas por meio da matriz binária
+df_ACM <- data.frame(ACM$c1, Variável = rep(names(quant_categorias),
+                                            quant_categorias))
+
+# Plotando o mapa perceptual
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  ggplot(aes(x = CS1, y = CS2, label = Categoria, color = Variável)) +
+  geom_point() +
+  ggtitle("Análise de correspondência da variável Confiança no Mercosul com Escolaridade na Argentina (2017-2022)") +
+  ggrepel::geom_label_repel() +
+  geom_vline(aes(xintercept = 0), linetype = "longdash", color = "grey48") +
+  geom_hline(aes(yintercept = 0), linetype = "longdash", color = "grey48") +
+  labs(x = paste("Dimensão 1:", paste0(round(perc_variancia[1], 2), "%")),
+       y = paste("Dimensão 2:", paste0(round(perc_variancia[2], 2), "%"))) +
+  theme_bw()
+
+
+## Mercosul x Classe Social
+
+
+arg7$`Classe Social` <- as.factor(arg7$`Classe Social`)
+
+# Mercosul e Escolaridade
+t = data.frame(arg7$Mercosul, arg7$`Classe Social`)
+
+# Vamos gerar a ACM
+ACM <- dudi.acm(t, scannf = FALSE)
+
+# Analisando as variâncias de cada dimensão
+perc_variancia <- (ACM$eig / sum(ACM$eig)) * 100
+paste0(round(perc_variancia,2),"%")
+
+# Quantidade de categorias por variável
+quant_categorias <- apply(t,
+                          MARGIN =  2,
+                          FUN = function(x) nlevels(as.factor(x)))
+
+# Consolidando as coordenadas-padrão obtidas por meio da matriz binária
+df_ACM <- data.frame(ACM$c1, Variável = rep(names(quant_categorias),
+                                            quant_categorias))
+
+# Plotando o mapa perceptual
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  ggplot(aes(x = CS1, y = CS2, label = Categoria, color = Variável)) +
+  geom_point() +
+  ggtitle("Análise de correspondência da variável Confiança no Mercosul com Classe Social na Argentina (2017-2022)") +
+  ggrepel::geom_label_repel() +
+  geom_vline(aes(xintercept = 0), linetype = "longdash", color = "grey48") +
+  geom_hline(aes(yintercept = 0), linetype = "longdash", color = "grey48") +
+  labs(x = paste("Dimensão 1:", paste0(round(perc_variancia[1], 2), "%")),
+       y = paste("Dimensão 2:", paste0(round(perc_variancia[2], 2), "%"))) +
+  theme_bw()
+
+## Mercosul x Região 
+
+
+arg7$Região <- as.factor(arg7$Região)
+
+
+
+# Mercosul e Escolaridade
+t = data.frame(arg7$Mercosul, arg7$Região)
+
+# Vamos gerar a ACM
+ACM <- dudi.acm(t, scannf = FALSE)
+
+# Analisando as variâncias de cada dimensão
+perc_variancia <- (ACM$eig / sum(ACM$eig)) * 100
+paste0(round(perc_variancia,2),"%")
+
+# Quantidade de categorias por variável
+quant_categorias <- apply(t,
+                          MARGIN =  2,
+                          FUN = function(x) nlevels(as.factor(x)))
+
+# Consolidando as coordenadas-padrão obtidas por meio da matriz binária
+df_ACM <- data.frame(ACM$c1, Variável = rep(names(quant_categorias),
+                                            quant_categorias))
+
+# Plotando o mapa perceptual
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  ggplot(aes(x = CS1, y = CS2, label = Categoria, color = Variável)) +
+  geom_point() +
+  ggtitle("Análise de correspondência da variável Confiança no Mercosul com Região na Argentina (2017-2022)") +
+  ggrepel::geom_label_repel() +
+  geom_vline(aes(xintercept = 0), linetype = "longdash", color = "grey48") +
+  geom_hline(aes(yintercept = 0), linetype = "longdash", color = "grey48") +
+  labs(x = paste("Dimensão 1:", paste0(round(perc_variancia[1], 2), "%")),
+       y = paste("Dimensão 2:", paste0(round(perc_variancia[2], 2), "%"))) +
+  theme_bw()
+
+
+
+
+```
+
+
+# Plotando análise de correspondência com a variável Confiança no Mercosul - Brasil - Sétima Onda
+
+```{r}
+
+# Brasil
+
+## Mercosul x Escolaridade
+
+bra7$Mercosul <- as.factor(bra7$Mercosul)
+bra7$Escolaridade <- as.factor(bra7$Escolaridade)
+
+# Mercosul e Escolaridade
+t = data.frame(bra7$Mercosul, bra7$Escolaridade)
+
+# Vamos gerar a ACM
+ACM <- dudi.acm(t, scannf = FALSE)
+
+# Analisando as variâncias de cada dimensão
+perc_variancia <- (ACM$eig / sum(ACM$eig)) * 100
+paste0(round(perc_variancia,2),"%")
+
+# Quantidade de categorias por variável
+quant_categorias <- apply(t,
+                          MARGIN =  2,
+                          FUN = function(x) nlevels(as.factor(x)))
+
+# Consolidando as coordenadas-padrão obtidas por meio da matriz binária
+df_ACM <- data.frame(ACM$c1, Variável = rep(names(quant_categorias),
+                                            quant_categorias))
+
+# Plotando o mapa perceptual
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  ggplot(aes(x = CS1, y = CS2, label = Categoria, color = Variável)) +
+  geom_point() +
+  ggtitle("Análise de correspondência da variável Confiança no Mercosul com Escolaridade no Brasil (2017-2022)") +
+  ggrepel::geom_label_repel() +
+  geom_vline(aes(xintercept = 0), linetype = "longdash", color = "grey48") +
+  geom_hline(aes(yintercept = 0), linetype = "longdash", color = "grey48") +
+  labs(x = paste("Dimensão 1:", paste0(round(perc_variancia[1], 2), "%")),
+       y = paste("Dimensão 2:", paste0(round(perc_variancia[2], 2), "%"))) +
+  theme_bw()
+
+
+## Mercosul x Classe Social
+
+
+bra7$`Classe Social` <- as.factor(bra7$`Classe Social`)
+
+# Mercosul e Classe Social
+t = data.frame(bra7$Mercosul, bra7$`Classe Social`)
+
+# Vamos gerar a ACM
+ACM <- dudi.acm(t, scannf = FALSE)
+
+# Analisando as variâncias de cada dimensão
+perc_variancia <- (ACM$eig / sum(ACM$eig)) * 100
+paste0(round(perc_variancia,2),"%")
+
+# Quantidade de categorias por variável
+quant_categorias <- apply(t,
+                          MARGIN =  2,
+                          FUN = function(x) nlevels(as.factor(x)))
+
+# Consolidando as coordenadas-padrão obtidas por meio da matriz binária
+df_ACM <- data.frame(ACM$c1, Variável = rep(names(quant_categorias),
+                                            quant_categorias))
+
+# Plotando o mapa perceptual
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  ggplot(aes(x = CS1, y = CS2, label = Categoria, color = Variável)) +
+  geom_point() +
+  ggtitle("Análise de correspondência da variável Confiança no Mercosul com Classe Social no Brasil (2017-2022)") +
+  ggrepel::geom_label_repel() +
+  geom_vline(aes(xintercept = 0), linetype = "longdash", color = "grey48") +
+  geom_hline(aes(yintercept = 0), linetype = "longdash", color = "grey48") +
+  labs(x = paste("Dimensão 1:", paste0(round(perc_variancia[1], 2), "%")),
+       y = paste("Dimensão 2:", paste0(round(perc_variancia[2], 2), "%"))) +
+  theme_bw()
+
+## Mercosul x Região 
+
+
+bra7$Região <- as.factor(bra7$Região)
+
+# Mercosul e Escolaridade
+t = data.frame(bra7$Mercosul, bra7$Região)
+
+# Vamos gerar a ACM
+ACM <- dudi.acm(t, scannf = FALSE)
+
+# Analisando as variâncias de cada dimensão
+perc_variancia <- (ACM$eig / sum(ACM$eig)) * 100
+paste0(round(perc_variancia,2),"%")
+
+# Quantidade de categorias por variável
+quant_categorias <- apply(t,
+                          MARGIN =  2,
+                          FUN = function(x) nlevels(as.factor(x)))
+
+# Consolidando as coordenadas-padrão obtidas por meio da matriz binária
+df_ACM <- data.frame(ACM$c1, Variável = rep(names(quant_categorias),
+                                            quant_categorias))
+
+# Plotando o mapa perceptual
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  ggplot(aes(x = CS1, y = CS2, label = Categoria, color = Variável)) +
+  geom_point() +
+  ggtitle("Análise de correspondência da variável Confiança no Mercosul com Região no Brasil (2017-2022)") +
+  ggrepel::geom_label_repel() +
+  geom_vline(aes(xintercept = 0), linetype = "longdash", color = "grey48") +
+  geom_hline(aes(yintercept = 0), linetype = "longdash", color = "grey48") +
+  labs(x = paste("Dimensão 1:", paste0(round(perc_variancia[1], 2), "%")),
+       y = paste("Dimensão 2:", paste0(round(perc_variancia[2], 2), "%"))) +
+  theme_bw()
+
+
+
+
+```
+
+# Plotando análise de correspondência com a variável Confiança no Mercosul - Uruguai - Sexta Onda
+
+```{r}
+
+# Uruguai
+
+## Mercosul x Escolaridade
+
+uru7$Mercosul <- as.factor(uru7$Mercosul)
+uru7$Escolaridade <- as.factor(uru7$Escolaridade)
+
+# Mercosul e Escolaridade
+t = data.frame(uru7$Mercosul, uru7$Escolaridade)
+
+# Vamos gerar a ACM
+ACM <- dudi.acm(t, scannf = FALSE)
+
+# Analisando as variâncias de cada dimensão
+perc_variancia <- (ACM$eig / sum(ACM$eig)) * 100
+paste0(round(perc_variancia,2),"%")
+
+# Quantidade de categorias por variável
+quant_categorias <- apply(t,
+                          MARGIN =  2,
+                          FUN = function(x) nlevels(as.factor(x)))
+
+# Consolidando as coordenadas-padrão obtidas por meio da matriz binária
+df_ACM <- data.frame(ACM$c1, Variável = rep(names(quant_categorias),
+                                            quant_categorias))
+
+# Plotando o mapa perceptual
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  ggplot(aes(x = CS1, y = CS2, label = Categoria, color = Variável)) +
+  geom_point() +
+  ggtitle("Análise de correspondência da variável Confiança no Mercosul com Escolaridade no Uruguai (2017-2022)") +
+  ggrepel::geom_label_repel() +
+  geom_vline(aes(xintercept = 0), linetype = "longdash", color = "grey48") +
+  geom_hline(aes(yintercept = 0), linetype = "longdash", color = "grey48") +
+  labs(x = paste("Dimensão 1:", paste0(round(perc_variancia[1], 2), "%")),
+       y = paste("Dimensão 2:", paste0(round(perc_variancia[2], 2), "%"))) +
+  theme_bw()
+
+
+
+
+
+
+
+## Mercosul x Região 
+
+uru7$Região <- as.factor(uru7$Região)
+
+# Mercosul e Escolaridade
+t = data.frame(uru7$Mercosul, uru7$Região)
+
+# Vamos gerar a ACM
+ACM <- dudi.acm(t, scannf = FALSE)
+
+# Analisando as variâncias de cada dimensão
+perc_variancia <- (ACM$eig / sum(ACM$eig)) * 100
+paste0(round(perc_variancia,2),"%")
+
+# Quantidade de categorias por variável
+quant_categorias <- apply(t,
+                          MARGIN =  2,
+                          FUN = function(x) nlevels(as.factor(x)))
+
+# Consolidando as coordenadas-padrão obtidas por meio da matriz binária
+df_ACM <- data.frame(ACM$c1, Variável = rep(names(quant_categorias),
+                                            quant_categorias))
+
+# Plotando o mapa perceptual
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  ggplot(aes(x = CS1, y = CS2, label = Categoria, color = Variável)) +
+  geom_point() +
+  ggtitle("Análise de correspondência da variável Confiança no Mercosul com Região no Uruguai (2017-2022)") +
+  ggrepel::geom_label_repel() +
+  geom_vline(aes(xintercept = 0), linetype = "longdash", color = "grey48") +
+  geom_hline(aes(yintercept = 0), linetype = "longdash", color = "grey48") +
+  labs(x = paste("Dimensão 1:", paste0(round(perc_variancia[1], 2), "%")),
+       y = paste("Dimensão 2:", paste0(round(perc_variancia[2], 2), "%"))) +
+  theme_bw()
+
+
+
+
+```
+
+
+
+## Análise de Correspondência Múltipla 
+
+### Argentina (2005-2009)
+
+```{r}
+
+# Visualização da base de dados
+arg5 %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped", 
+                full_width = FALSE,
+                font_size = 20)
+
+# Matriz Binária e Matriz de Burt
+
+# Matriz binária
+arg5 <- arg5 %>% select(País, Sexo, Idade, Mercosul, Escolaridade, `Classe Social`, Região)
+
+arg5$Mercosul <- as.factor(arg5$Mercosul)
+arg5$Escolaridade <- as.factor(arg5$Escolaridade)
+arg5$`Classe Social` <- as.factor(arg5$`Classe Social`)
+arg5$Região <- as.factor(arg5$Região)
+
+matriz_binaria <- matlogic(arg5[,4:7])
+
+
+# Para a matriz de Burt
+matriz_burt <- burt(arg5[,4:7])
+
+
+verifica_burt <- t(matriz_binaria) %*% matriz_binaria
+
+# Elaboração da análise de correspondência múltipla (ACM)
+ACM <- dudi.acm(arg5[,4:7], scannf = FALSE)
+
+# Visualização das coordenadas principais das categorias das variáveis
+# Método da matriz de Burt B (componente 'co' do objeto 'ACM')
+round(ACM$co, 3) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped",
+                full_width = FALSE,
+                font_size = 20)
+
+# Visualização das coordenadas-padrão das categorias das variáveis
+# Método da matriz binária (componente 'c1' do objeto 'ACM')
+round(ACM$c1, 3) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped",
+                full_width = FALSE,
+                font_size = 20)
+
+# Massas das linhas e colunas (componente 'cw' do objeto 'ACM')
+ACM$cw
+
+# Inércias principais (componente 'eig' do objeto 'ACM')
+ACM$eig
+## Portanto, há 5 dimensões. J-Q = 8-3 = 5
+
+# Percentual de variância explicada por dimensão
+perc_variancia <- (ACM$eig / sum(ACM$eig)) * 100
+
+
+# Visualização do percentual de variância explicada por dimensão
+data.frame(Dimensão = paste("Dimensão", 1:length(perc_variancia)),
+           Variância = perc_variancia) %>%
+  ggplot(aes(x = Dimensão,
+             y = Variância,
+             label = paste0(round(Variância, 2),"%"))) +
+  geom_bar(stat = "identity", fill = "cyan") +
+  geom_text(vjust = 2.5, size = 5) +
+  theme_bw()
+
+# Mapa perceptual na ACM
+
+# Definição da quantidade de categorias de cada variável qualitativa
+quant_categorias <- apply(arg5[,4:7],
+                          MARGIN =  2,
+                          FUN = function(x) nlevels(as.factor(x)))
+
+# Consolidando as coordenadas-padrão obtidas por meio da matriz binária ('c1')
+df_ACM <- data.frame(ACM$c1, Variável = rep(names(quant_categorias),
+                                            quant_categorias))
+
+# Visualizando as coordenadas
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  mutate(Categoria = gsub("Mercosul.","", Categoria),
+         Categoria = gsub("Escolaridade.","", Categoria),
+         Categoria = gsub("Classe Social.", "", Categoria),
+         Categoria = gsub("Região.","", Categoria)) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped",
+                full_width = FALSE,
+                font_size = 20)
+
+# Plotando o mapa perceptual
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  mutate(Categoria = gsub("Mercosul.","", Categoria),
+         Categoria = gsub("Escolaridade.","", Categoria),
+         Categoria = gsub("Classe Social.", "", Categoria),
+         Categoria = gsub("Região.","", Categoria)) %>%
+  ggplot(aes(x = CS1, y = CS2, label = Categoria, color = Variável)) +
+  geom_point() +
+  ggtitle("Mapa Percentual Argentina (2005-2009)")+
+  ggrepel::geom_label_repel() +
+  geom_vline(aes(xintercept = 0), linetype = "longdash", color = "grey48") +
+  geom_hline(aes(yintercept = 0), linetype = "longdash", color = "grey48") +
+  labs(x = paste("Dimensão 1:", paste0(round(perc_variancia[1], 2), "%")),
+       y = paste("Dimensão 2:", paste0(round(perc_variancia[2], 2), "%"))) +
+  scale_color_manual("Variável",
+                     values = c("turquoise3", "springgreen4", "deeppink1", "brown4")) +
+  theme_bw()
+
+
+
+```
+
+
+### Brasil (2005-2009)
+
+```{r}
+
+# Visualização da base de dados
+bra5 %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped", 
+                full_width = FALSE,
+                font_size = 20)
+
+# Matriz Binária e Matriz de Burt
+
+# Matriz binária
+bra5 <- bra5 %>% select(País, Sexo, Idade, Mercosul, Escolaridade, `Classe Social`, Região)
+
+bra5$Mercosul <- as.factor(bra5$Mercosul)
+bra5$Escolaridade <- as.factor(bra5$Escolaridade)
+bra5$`Classe Social` <- as.factor(bra5$`Classe Social`)
+bra5$Região <- as.factor(bra5$Região)
+
+matriz_binaria <- matlogic(bra5[,4:7])
+
+
+# Para a matriz de Burt
+matriz_burt <- burt(bra5[,4:7])
+
+
+verifica_burt <- t(matriz_binaria) %*% matriz_binaria
+
+# Elaboração da análise de correspondência múltipla (ACM)
+ACM <- dudi.acm(bra5[,4:7], scannf = FALSE)
+
+# Visualização das coordenadas principais das categorias das variáveis
+# Método da matriz de Burt B (componente 'co' do objeto 'ACM')
+round(ACM$co, 3) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped",
+                full_width = FALSE,
+                font_size = 20)
+
+# Visualização das coordenadas-padrão das categorias das variáveis
+# Método da matriz binária (componente 'c1' do objeto 'ACM')
+round(ACM$c1, 3) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped",
+                full_width = FALSE,
+                font_size = 20)
+
+# Massas das linhas e colunas (componente 'cw' do objeto 'ACM')
+ACM$cw
+
+# Inércias principais (componente 'eig' do objeto 'ACM')
+ACM$eig
+## Portanto, há 5 dimensões. J-Q = 8-3 = 5
+
+# Percentual de variância explicada por dimensão
+perc_variancia <- (ACM$eig / sum(ACM$eig)) * 100
+
+
+# Visualização do percentual de variância explicada por dimensão
+data.frame(Dimensão = paste("Dimensão", 1:length(perc_variancia)),
+           Variância = perc_variancia) %>%
+  ggplot(aes(x = Dimensão,
+             y = Variância,
+             label = paste0(round(Variância, 2),"%"))) +
+  geom_bar(stat = "identity", fill = "cyan") +
+  geom_text(vjust = 2.5, size = 5) +
+  theme_bw()
+
+# Mapa perceptual na ACM
+
+# Definição da quantidade de categorias de cada variável qualitativa
+quant_categorias <- apply(bra5[,4:7],
+                          MARGIN =  2,
+                          FUN = function(x) nlevels(as.factor(x)))
+
+# Consolidando as coordenadas-padrão obtidas por meio da matriz binária ('c1')
+df_ACM <- data.frame(ACM$c1, Variável = rep(names(quant_categorias),
+                                            quant_categorias))
+
+# Visualizando as coordenadas
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  mutate(Categoria = gsub("Mercosul.","", Categoria),
+         Categoria = gsub("Escolaridade.","", Categoria),
+         Categoria = gsub("Classe Social.", "", Categoria),
+         Categoria = gsub("Região.","", Categoria)) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped",
+                full_width = FALSE,
+                font_size = 20)
+
+# Plotando o mapa perceptual
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  mutate(Categoria = gsub("Mercosul.","", Categoria),
+         Categoria = gsub("Escolaridade.","", Categoria),
+         Categoria = gsub("Classe Social.", "", Categoria),
+         Categoria = gsub("Região.","", Categoria)) %>%
+  ggplot(aes(x = CS1, y = CS2, label = Categoria, color = Variável)) +
+  geom_point() +
+  ggtitle("Mapa Percentual Brasil (2005-2009)")+
+  ggrepel::geom_label_repel() +
+  geom_vline(aes(xintercept = 0), linetype = "longdash", color = "grey48") +
+  geom_hline(aes(yintercept = 0), linetype = "longdash", color = "grey48") +
+  labs(x = paste("Dimensão 1:", paste0(round(perc_variancia[1], 2), "%")),
+       y = paste("Dimensão 2:", paste0(round(perc_variancia[2], 2), "%"))) +
+  scale_color_manual("Variável",
+                     values = c("turquoise3", "springgreen4", "deeppink1", "brown4")) +
+  theme_bw()
+
+
+```
+
+
+### Uruguai (2005-2009)
+
+```{r}
+
+# Visualização da base de dados
+uru5 %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped", 
+                full_width = FALSE,
+                font_size = 20)
+
+# Matriz Binária e Matriz de Burt
+
+# Matriz binária
+uru5_1 <- uru5 %>% select(País, Sexo, Idade, Mercosul, `Classe Social`, Região)
+
+uru5_1$Mercosul <- as.factor(uru5_1$Mercosul)
+uru5_1$`Classe Social` <- as.factor(uru5_1$`Classe Social`)
+uru5_1$Região <- as.factor(uru5_1$Região)
+
+matriz_binaria <- matlogic(uru5_1[,4:6])
+
+
+# Para a matriz de Burt
+matriz_burt <- burt(uru5_1[,4:6])
+
+
+verifica_burt <- t(matriz_binaria) %*% matriz_binaria
+
+# Elaboração da análise de correspondência múltipla (ACM)
+ACM <- dudi.acm(uru5_1[,4:6], scannf = FALSE)
+
+# Visualização das coordenadas principais das categorias das variáveis
+# Método da matriz de Burt B (componente 'co' do objeto 'ACM')
+round(ACM$co, 3) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped",
+                full_width = FALSE,
+                font_size = 20)
+
+# Visualização das coordenadas-padrão das categorias das variáveis
+# Método da matriz binária (componente 'c1' do objeto 'ACM')
+round(ACM$c1, 3) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped",
+                full_width = FALSE,
+                font_size = 20)
+
+# Massas das linhas e colunas (componente 'cw' do objeto 'ACM')
+ACM$cw
+
+# Inércias principais (componente 'eig' do objeto 'ACM')
+ACM$eig
+## Portanto, há 5 dimensões. J-Q = 8-3 = 5
+
+# Percentual de variância explicada por dimensão
+perc_variancia <- (ACM$eig / sum(ACM$eig)) * 100
+
+
+# Visualização do percentual de variância explicada por dimensão
+data.frame(Dimensão = paste("Dimensão", 1:length(perc_variancia)),
+           Variância = perc_variancia) %>%
+  ggplot(aes(x = Dimensão,
+             y = Variância,
+             label = paste0(round(Variância, 2),"%"))) +
+  geom_bar(stat = "identity", fill = "cyan") +
+  geom_text(vjust = 2.5, size = 5) +
+  theme_bw()
+
+# Mapa perceptual na ACM
+
+# Definição da quantidade de categorias de cada variável qualitativa
+quant_categorias <- apply(uru5_1[,4:6],
+                          MARGIN =  2,
+                          FUN = function(x) nlevels(as.factor(x)))
+
+# Consolidando as coordenadas-padrão obtidas por meio da matriz binária ('c1')
+df_ACM <- data.frame(ACM$c1, Variável = rep(names(quant_categorias),
+                                            quant_categorias))
+
+# Visualizando as coordenadas
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  mutate(Categoria = gsub("Mercosul.","", Categoria),
+         Categoria = gsub("Classe Social.", "", Categoria),
+         Categoria = gsub("Região.","", Categoria)) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped",
+                full_width = FALSE,
+                font_size = 20)
+
+# Plotando o mapa perceptual
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  mutate(Categoria = gsub("Mercosul.","", Categoria),
+         Categoria = gsub("Classe Social.", "", Categoria),
+         Categoria = gsub("Região.","", Categoria)) %>%
+  ggplot(aes(x = CS1, y = CS2, label = Categoria, color = Variável)) +
+  geom_point() +
+  ggtitle("Mapa Percentual Uruguai (2005-2009)")+
+  ggrepel::geom_label_repel() +
+  geom_vline(aes(xintercept = 0), linetype = "longdash", color = "grey48") +
+  geom_hline(aes(yintercept = 0), linetype = "longdash", color = "grey48") +
+  labs(x = paste("Dimensão 1:", paste0(round(perc_variancia[1], 2), "%")),
+       y = paste("Dimensão 2:", paste0(round(perc_variancia[2], 2), "%"))) +
+  scale_color_manual("Variável",
+                     values = c("turquoise3", "springgreen4", "deeppink1")) +
+  theme_bw()
+
+
+```
+
+
+### Argentina (2010-2014)
+
+```{r}
+
+# Visualização da base de dados
+arg6 %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped", 
+                full_width = FALSE,
+                font_size = 20)
+
+# Matriz Binária e Matriz de Burt
+
+# Matriz binária
+arg6 <- arg6 %>% select(País, Sexo, Idade, Mercosul, Escolaridade, `Classe Social`, Região)
+
+arg6$Mercosul <- as.factor(arg6$Mercosul)
+arg6$Escolaridade <- as.factor(arg6$Escolaridade)
+arg6$`Classe Social` <- as.factor(arg6$`Classe Social`)
+arg6$Região <- as.factor(arg6$Região)
+
+matriz_binaria <- matlogic(arg6[,4:7])
+
+
+# Para a matriz de Burt
+matriz_burt <- burt(arg6[,4:7])
+
+
+verifica_burt <- t(matriz_binaria) %*% matriz_binaria
+
+# Elaboração da análise de correspondência múltipla (ACM)
+ACM <- dudi.acm(arg6[,4:7], scannf = FALSE)
+
+# Visualização das coordenadas principais das categorias das variáveis
+# Método da matriz de Burt B (componente 'co' do objeto 'ACM')
+round(ACM$co, 3) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped",
+                full_width = FALSE,
+                font_size = 20)
+
+# Visualização das coordenadas-padrão das categorias das variáveis
+# Método da matriz binária (componente 'c1' do objeto 'ACM')
+round(ACM$c1, 3) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped",
+                full_width = FALSE,
+                font_size = 20)
+
+# Massas das linhas e colunas (componente 'cw' do objeto 'ACM')
+ACM$cw
+
+# Inércias principais (componente 'eig' do objeto 'ACM')
+ACM$eig
+## Portanto, há 5 dimensões. J-Q = 8-3 = 5
+
+# Percentual de variância explicada por dimensão
+perc_variancia <- (ACM$eig / sum(ACM$eig)) * 100
+
+
+# Visualização do percentual de variância explicada por dimensão
+data.frame(Dimensão = paste("Dimensão", 1:length(perc_variancia)),
+           Variância = perc_variancia) %>%
+  ggplot(aes(x = Dimensão,
+             y = Variância,
+             label = paste0(round(Variância, 2),"%"))) +
+  geom_bar(stat = "identity", fill = "cyan") +
+  geom_text(vjust = 2.5, size = 5) +
+  theme_bw()
+
+# Mapa perceptual na ACM
+
+# Definição da quantidade de categorias de cada variável qualitativa
+quant_categorias <- apply(arg6[,4:7],
+                          MARGIN =  2,
+                          FUN = function(x) nlevels(as.factor(x)))
+
+# Consolidando as coordenadas-padrão obtidas por meio da matriz binária ('c1')
+df_ACM <- data.frame(ACM$c1, Variável = rep(names(quant_categorias),
+                                            quant_categorias))
+
+# Visualizando as coordenadas
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  mutate(Categoria = gsub("Mercosul.","", Categoria),
+         Categoria = gsub("Escolaridade.","", Categoria),
+         Categoria = gsub("Classe Social.", "", Categoria),
+         Categoria = gsub("Região.","", Categoria)) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped",
+                full_width = FALSE,
+                font_size = 20)
+
+# Plotando o mapa perceptual
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  mutate(Categoria = gsub("Mercosul.","", Categoria),
+         Categoria = gsub("Escolaridade.","", Categoria),
+         Categoria = gsub("Classe Social.", "", Categoria),
+         Categoria = gsub("Região.","", Categoria)) %>%
+  ggplot(aes(x = CS1, y = CS2, label = Categoria, color = Variável)) +
+  geom_point() +
+  ggtitle("Mapa Percentual Argentina (2010-2014)")+
+  ggrepel::geom_label_repel() +
+  geom_vline(aes(xintercept = 0), linetype = "longdash", color = "grey48") +
+  geom_hline(aes(yintercept = 0), linetype = "longdash", color = "grey48") +
+  labs(x = paste("Dimensão 1:", paste0(round(perc_variancia[1], 2), "%")),
+       y = paste("Dimensão 2:", paste0(round(perc_variancia[2], 2), "%"))) +
+  scale_color_manual("Variável",
+                     values = c("turquoise3", "springgreen4", "deeppink1", "brown4")) +
+  theme_bw()
+
+
+
+```
+
+### Brasil (2010-2014)
+
+```{r}
+
+# Visualização da base de dados
+bra6 %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped", 
+                full_width = FALSE,
+                font_size = 20)
+
+# Matriz Binária e Matriz de Burt
+
+# Matriz binária
+bra6 <- bra6 %>% select(País, Sexo, Idade, Mercosul, Escolaridade, `Classe Social`, Região)
+
+bra6$Mercosul <- as.factor(bra6$Mercosul)
+bra6$Escolaridade <- as.factor(bra6$Escolaridade)
+bra6$`Classe Social` <- as.factor(bra6$`Classe Social`)
+bra6$Região <- as.factor(bra6$Região)
+
+matriz_binaria <- matlogic(bra6[,4:7])
+
+
+# Para a matriz de Burt
+matriz_burt <- burt(bra6[,4:7])
+
+
+verifica_burt <- t(matriz_binaria) %*% matriz_binaria
+
+# Elaboração da análise de correspondência múltipla (ACM)
+ACM <- dudi.acm(bra6[,4:7], scannf = FALSE)
+
+# Visualização das coordenadas principais das categorias das variáveis
+# Método da matriz de Burt B (componente 'co' do objeto 'ACM')
+round(ACM$co, 3) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped",
+                full_width = FALSE,
+                font_size = 20)
+
+# Visualização das coordenadas-padrão das categorias das variáveis
+# Método da matriz binária (componente 'c1' do objeto 'ACM')
+round(ACM$c1, 3) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped",
+                full_width = FALSE,
+                font_size = 20)
+
+# Massas das linhas e colunas (componente 'cw' do objeto 'ACM')
+ACM$cw
+
+# Inércias principais (componente 'eig' do objeto 'ACM')
+ACM$eig
+## Portanto, há 5 dimensões. J-Q = 8-3 = 5
+
+# Percentual de variância explicada por dimensão
+perc_variancia <- (ACM$eig / sum(ACM$eig)) * 100
+
+
+# Visualização do percentual de variância explicada por dimensão
+data.frame(Dimensão = paste("Dimensão", 1:length(perc_variancia)),
+           Variância = perc_variancia) %>%
+  ggplot(aes(x = Dimensão,
+             y = Variância,
+             label = paste0(round(Variância, 2),"%"))) +
+  geom_bar(stat = "identity", fill = "cyan") +
+  geom_text(vjust = 2.5, size = 5) +
+  theme_bw()
+
+# Mapa perceptual na ACM
+
+# Definição da quantidade de categorias de cada variável qualitativa
+quant_categorias <- apply(bra6[,4:7],
+                          MARGIN =  2,
+                          FUN = function(x) nlevels(as.factor(x)))
+
+# Consolidando as coordenadas-padrão obtidas por meio da matriz binária ('c1')
+df_ACM <- data.frame(ACM$c1, Variável = rep(names(quant_categorias),
+                                            quant_categorias))
+
+# Visualizando as coordenadas
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  mutate(Categoria = gsub("Mercosul.","", Categoria),
+         Categoria = gsub("Escolaridade.","", Categoria),
+         Categoria = gsub("Classe Social.", "", Categoria),
+         Categoria = gsub("Região.","", Categoria)) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped",
+                full_width = FALSE,
+                font_size = 20)
+
+# Plotando o mapa perceptual
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  mutate(Categoria = gsub("Mercosul.","", Categoria),
+         Categoria = gsub("Escolaridade.","", Categoria),
+         Categoria = gsub("Classe Social.", "", Categoria),
+         Categoria = gsub("Região.","", Categoria)) %>%
+  ggplot(aes(x = CS1, y = CS2, label = Categoria, color = Variável)) +
+  geom_point() +
+  ggtitle("Mapa Percentual Brasil (2010-2014)")+
+  ggrepel::geom_label_repel() +
+  geom_vline(aes(xintercept = 0), linetype = "longdash", color = "grey48") +
+  geom_hline(aes(yintercept = 0), linetype = "longdash", color = "grey48") +
+  labs(x = paste("Dimensão 1:", paste0(round(perc_variancia[1], 2), "%")),
+       y = paste("Dimensão 2:", paste0(round(perc_variancia[2], 2), "%"))) +
+  scale_color_manual("Variável",
+                     values = c("turquoise3", "springgreen4", "deeppink1", "brown4")) +
+  theme_bw()
+
+
+```
+
+### Uruguai (2010-2014)
+
+```{r}
+
+# Visualização da base de dados
+uru6 %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped", 
+                full_width = FALSE,
+                font_size = 20)
+
+# Matriz Binária e Matriz de Burt
+
+# Matriz binária
+uru6 <- uru6 %>% select(País, Sexo, Idade, Mercosul, Escolaridade, `Classe Social`, Região)
+
+uru6$Mercosul <- as.factor(uru6$Mercosul)
+uru6$Escolaridade <- as.factor(uru6$Escolaridade)
+uru6$`Classe Social` <- as.factor(uru6$`Classe Social`)
+uru6$Região <- as.factor(uru6$Região)
+
+matriz_binaria <- matlogic(uru6[,4:7])
+
+
+# Para a matriz de Burt
+matriz_burt <- burt(uru6[,4:7])
+
+
+verifica_burt <- t(matriz_binaria) %*% matriz_binaria
+
+# Elaboração da análise de correspondência múltipla (ACM)
+ACM <- dudi.acm(uru6[,4:7], scannf = FALSE)
+
+# Visualização das coordenadas principais das categorias das variáveis
+# Método da matriz de Burt B (componente 'co' do objeto 'ACM')
+round(ACM$co, 3) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped",
+                full_width = FALSE,
+                font_size = 20)
+
+# Visualização das coordenadas-padrão das categorias das variáveis
+# Método da matriz binária (componente 'c1' do objeto 'ACM')
+round(ACM$c1, 3) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped",
+                full_width = FALSE,
+                font_size = 20)
+
+# Massas das linhas e colunas (componente 'cw' do objeto 'ACM')
+ACM$cw
+
+# Inércias principais (componente 'eig' do objeto 'ACM')
+ACM$eig
+## Portanto, há 5 dimensões. J-Q = 8-3 = 5
+
+# Percentual de variância explicada por dimensão
+perc_variancia <- (ACM$eig / sum(ACM$eig)) * 100
+
+
+# Visualização do percentual de variância explicada por dimensão
+data.frame(Dimensão = paste("Dimensão", 1:length(perc_variancia)),
+           Variância = perc_variancia) %>%
+  ggplot(aes(x = Dimensão,
+             y = Variância,
+             label = paste0(round(Variância, 2),"%"))) +
+  geom_bar(stat = "identity", fill = "cyan") +
+  geom_text(vjust = 2.5, size = 5) +
+  theme_bw()
+
+# Mapa perceptual na ACM
+
+# Definição da quantidade de categorias de cada variável qualitativa
+quant_categorias <- apply(uru6[,4:7],
+                          MARGIN =  2,
+                          FUN = function(x) nlevels(as.factor(x)))
+
+# Consolidando as coordenadas-padrão obtidas por meio da matriz binária ('c1')
+df_ACM <- data.frame(ACM$c1, Variável = rep(names(quant_categorias),
+                                            quant_categorias))
+
+# Visualizando as coordenadas
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  mutate(Categoria = gsub("Mercosul.","", Categoria),
+         Categoria = gsub("Escolaridade.","", Categoria),
+         Categoria = gsub("Classe Social.", "", Categoria),
+         Categoria = gsub("Região.","", Categoria)) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped",
+                full_width = FALSE,
+                font_size = 20)
+
+# Plotando o mapa perceptual
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  mutate(Categoria = gsub("Mercosul.","", Categoria),
+         Categoria = gsub("Escolaridade.","", Categoria),
+         Categoria = gsub("Classe Social.", "", Categoria),
+         Categoria = gsub("Região.","", Categoria)) %>%
+  ggplot(aes(x = CS1, y = CS2, label = Categoria, color = Variável)) +
+  geom_point() +
+  ggtitle("Mapa Percentual Uruguai (2010-2014)")+
+  ggrepel::geom_label_repel() +
+  geom_vline(aes(xintercept = 0), linetype = "longdash", color = "grey48") +
+  geom_hline(aes(yintercept = 0), linetype = "longdash", color = "grey48") +
+  labs(x = paste("Dimensão 1:", paste0(round(perc_variancia[1], 2), "%")),
+       y = paste("Dimensão 2:", paste0(round(perc_variancia[2], 2), "%"))) +
+  scale_color_manual("Variável",
+                     values = c("turquoise3", "springgreen4", "deeppink1", "brown4")) +
+  theme_bw()
+
+
+```
+
+
+### Argentina (2017-2022)
+
+```{r}
+
+# Visualização da base de dados
+arg7 %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped", 
+                full_width = FALSE,
+                font_size = 20)
+
+# Matriz Binária e Matriz de Burt
+
+# Matriz binária
+arg7 <- arg7 %>% select(País, Sexo, Idade, Mercosul, Escolaridade, `Classe Social`, Região)
+
+arg7$Mercosul <- as.factor(arg7$Mercosul)
+arg7$Escolaridade <- as.factor(arg7$Escolaridade)
+arg7$`Classe Social` <- as.factor(arg7$`Classe Social`)
+arg7$Região <- as.factor(arg7$Região)
+
+matriz_binaria <- matlogic(arg7[,4:7])
+
+
+# Para a matriz de Burt
+matriz_burt <- burt(arg7[,4:7])
+
+
+verifica_burt <- t(matriz_binaria) %*% matriz_binaria
+
+# Elaboração da análise de correspondência múltipla (ACM)
+ACM <- dudi.acm(arg7[,4:7], scannf = FALSE)
+
+# Visualização das coordenadas principais das categorias das variáveis
+# Método da matriz de Burt B (componente 'co' do objeto 'ACM')
+round(ACM$co, 3) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped",
+                full_width = FALSE,
+                font_size = 20)
+
+# Visualização das coordenadas-padrão das categorias das variáveis
+# Método da matriz binária (componente 'c1' do objeto 'ACM')
+round(ACM$c1, 3) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped",
+                full_width = FALSE,
+                font_size = 20)
+
+# Massas das linhas e colunas (componente 'cw' do objeto 'ACM')
+ACM$cw
+
+# Inércias principais (componente 'eig' do objeto 'ACM')
+ACM$eig
+## Portanto, há 5 dimensões. J-Q = 8-3 = 5
+
+# Percentual de variância explicada por dimensão
+perc_variancia <- (ACM$eig / sum(ACM$eig)) * 100
+
+
+# Visualização do percentual de variância explicada por dimensão
+data.frame(Dimensão = paste("Dimensão", 1:length(perc_variancia)),
+           Variância = perc_variancia) %>%
+  ggplot(aes(x = Dimensão,
+             y = Variância,
+             label = paste0(round(Variância, 2),"%"))) +
+  geom_bar(stat = "identity", fill = "cyan") +
+  geom_text(vjust = 2.5, size = 5) +
+  theme_bw()
+
+# Mapa perceptual na ACM
+
+# Definição da quantidade de categorias de cada variável qualitativa
+quant_categorias <- apply(arg7[,4:7],
+                          MARGIN =  2,
+                          FUN = function(x) nlevels(as.factor(x)))
+
+# Consolidando as coordenadas-padrão obtidas por meio da matriz binária ('c1')
+df_ACM <- data.frame(ACM$c1, Variável = rep(names(quant_categorias),
+                                            quant_categorias))
+
+# Visualizando as coordenadas
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  mutate(Categoria = gsub("Mercosul.","", Categoria),
+         Categoria = gsub("Escolaridade.","", Categoria),
+         Categoria = gsub("Classe Social.", "", Categoria),
+         Categoria = gsub("Região.","", Categoria)) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped",
+                full_width = FALSE,
+                font_size = 20)
+
+# Plotando o mapa perceptual
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  mutate(Categoria = gsub("Mercosul.","", Categoria),
+         Categoria = gsub("Escolaridade.","", Categoria),
+         Categoria = gsub("Classe Social.", "", Categoria),
+         Categoria = gsub("Região.","", Categoria)) %>%
+  ggplot(aes(x = CS1, y = CS2, label = Categoria, color = Variável)) +
+  geom_point() +
+  ggtitle("Mapa Percentual Argentina (2017-2022)")+
+  ggrepel::geom_label_repel() +
+  geom_vline(aes(xintercept = 0), linetype = "longdash", color = "grey48") +
+  geom_hline(aes(yintercept = 0), linetype = "longdash", color = "grey48") +
+  labs(x = paste("Dimensão 1:", paste0(round(perc_variancia[1], 2), "%")),
+       y = paste("Dimensão 2:", paste0(round(perc_variancia[2], 2), "%"))) +
+  scale_color_manual("Variável",
+                     values = c("turquoise3", "springgreen4", "deeppink1", "brown4")) +
+  theme_bw()
+
+
+
+```
+
+
+### Brasil (2017-2022)
+
+```{r}
+
+# Visualização da base de dados
+bra7 %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped", 
+                full_width = FALSE,
+                font_size = 20)
+
+# Matriz Binária e Matriz de Burt
+
+# Matriz binária
+bra7 <- bra7 %>% select(País, Sexo, Idade, Mercosul, Escolaridade, `Classe Social`, Região)
+
+bra7$Mercosul <- as.factor(bra7$Mercosul)
+bra7$Escolaridade <- as.factor(bra7$Escolaridade)
+bra7$`Classe Social` <- as.factor(bra7$`Classe Social`)
+bra7$Região <- as.factor(bra7$Região)
+
+matriz_binaria <- matlogic(bra7[,4:7])
+
+
+# Para a matriz de Burt
+matriz_burt <- burt(bra7[,4:7])
+
+
+verifica_burt <- t(matriz_binaria) %*% matriz_binaria
+
+# Elaboração da análise de correspondência múltipla (ACM)
+ACM <- dudi.acm(bra7[,4:7], scannf = FALSE)
+
+# Visualização das coordenadas principais das categorias das variáveis
+# Método da matriz de Burt B (componente 'co' do objeto 'ACM')
+round(ACM$co, 3) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped",
+                full_width = FALSE,
+                font_size = 20)
+
+# Visualização das coordenadas-padrão das categorias das variáveis
+# Método da matriz binária (componente 'c1' do objeto 'ACM')
+round(ACM$c1, 3) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped",
+                full_width = FALSE,
+                font_size = 20)
+
+# Massas das linhas e colunas (componente 'cw' do objeto 'ACM')
+ACM$cw
+
+# Inércias principais (componente 'eig' do objeto 'ACM')
+ACM$eig
+## Portanto, há 5 dimensões. J-Q = 8-3 = 5
+
+# Percentual de variância explicada por dimensão
+perc_variancia <- (ACM$eig / sum(ACM$eig)) * 100
+
+
+# Visualização do percentual de variância explicada por dimensão
+data.frame(Dimensão = paste("Dimensão", 1:length(perc_variancia)),
+           Variância = perc_variancia) %>%
+  ggplot(aes(x = Dimensão,
+             y = Variância,
+             label = paste0(round(Variância, 2),"%"))) +
+  geom_bar(stat = "identity", fill = "cyan") +
+  geom_text(vjust = 2.5, size = 5) +
+  theme_bw()
+
+# Mapa perceptual na ACM
+
+# Definição da quantidade de categorias de cada variável qualitativa
+quant_categorias <- apply(bra7[,4:7],
+                          MARGIN =  2,
+                          FUN = function(x) nlevels(as.factor(x)))
+
+# Consolidando as coordenadas-padrão obtidas por meio da matriz binária ('c1')
+df_ACM <- data.frame(ACM$c1, Variável = rep(names(quant_categorias),
+                                            quant_categorias))
+
+# Visualizando as coordenadas
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  mutate(Categoria = gsub("Mercosul.","", Categoria),
+         Categoria = gsub("Escolaridade.","", Categoria),
+         Categoria = gsub("Classe Social.", "", Categoria),
+         Categoria = gsub("Região.","", Categoria)) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped",
+                full_width = FALSE,
+                font_size = 20)
+
+# Plotando o mapa perceptual
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  mutate(Categoria = gsub("Mercosul.","", Categoria),
+         Categoria = gsub("Escolaridade.","", Categoria),
+         Categoria = gsub("Classe Social.", "", Categoria),
+         Categoria = gsub("Região.","", Categoria)) %>%
+  ggplot(aes(x = CS1, y = CS2, label = Categoria, color = Variável)) +
+  geom_point() +
+  ggtitle("Mapa Percentual Brasil (2017-2022)")+
+  ggrepel::geom_label_repel() +
+  geom_vline(aes(xintercept = 0), linetype = "longdash", color = "grey48") +
+  geom_hline(aes(yintercept = 0), linetype = "longdash", color = "grey48") +
+  labs(x = paste("Dimensão 1:", paste0(round(perc_variancia[1], 2), "%")),
+       y = paste("Dimensão 2:", paste0(round(perc_variancia[2], 2), "%"))) +
+  scale_color_manual("Variável",
+                     values = c("turquoise3", "springgreen4", "deeppink1", "brown4")) +
+  theme_bw()
+
+
+```
+
+### Uruguai (2017-2022)
+
+```{r}
+
+# Visualização da base de dados
+uru7 %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped", 
+                full_width = FALSE,
+                font_size = 20)
+
+# Matriz Binária e Matriz de Burt
+
+# Matriz binária
+uru7_1 <- uru7 %>% select(País, Sexo, Idade, Mercosul, Escolaridade, Região)
+
+uru7_1$Mercosul <- as.factor(uru7_1$Mercosul)
+uru7_1$Escolaridade <- as.factor(uru7_1$Escolaridade)
+uru7_1$Região <- as.factor(uru7_1$Região)
+
+matriz_binaria <- matlogic(uru7_1[,4:6])
+
+
+# Para a matriz de Burt
+matriz_burt <- burt(uru7_1[,4:6])
+
+
+verifica_burt <- t(matriz_binaria) %*% matriz_binaria
+
+# Elaboração da análise de correspondência múltipla (ACM)
+ACM <- dudi.acm(uru7_1[,4:6], scannf = FALSE)
+
+# Visualização das coordenadas principais das categorias das variáveis
+# Método da matriz de Burt B (componente 'co' do objeto 'ACM')
+round(ACM$co, 3) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped",
+                full_width = FALSE,
+                font_size = 20)
+
+# Visualização das coordenadas-padrão das categorias das variáveis
+# Método da matriz binária (componente 'c1' do objeto 'ACM')
+round(ACM$c1, 3) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped",
+                full_width = FALSE,
+                font_size = 20)
+
+# Massas das linhas e colunas (componente 'cw' do objeto 'ACM')
+ACM$cw
+
+# Inércias principais (componente 'eig' do objeto 'ACM')
+ACM$eig
+## Portanto, há 5 dimensões. J-Q = 8-3 = 5
+
+# Percentual de variância explicada por dimensão
+perc_variancia <- (ACM$eig / sum(ACM$eig)) * 100
+
+
+# Visualização do percentual de variância explicada por dimensão
+data.frame(Dimensão = paste("Dimensão", 1:length(perc_variancia)),
+           Variância = perc_variancia) %>%
+  ggplot(aes(x = Dimensão,
+             y = Variância,
+             label = paste0(round(Variância, 2),"%"))) +
+  geom_bar(stat = "identity", fill = "cyan") +
+  geom_text(vjust = 2.5, size = 5) +
+  theme_bw()
+
+# Mapa perceptual na ACM
+
+# Definição da quantidade de categorias de cada variável qualitativa
+quant_categorias <- apply(uru7_1[,4:6],
+                          MARGIN =  2,
+                          FUN = function(x) nlevels(as.factor(x)))
+
+# Consolidando as coordenadas-padrão obtidas por meio da matriz binária ('c1')
+df_ACM <- data.frame(ACM$c1, Variável = rep(names(quant_categorias),
+                                            quant_categorias))
+
+# Visualizando as coordenadas
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  mutate(Categoria = gsub("Mercosul.","", Categoria),
+         Categoria = gsub("Escolaridade.","", Categoria),
+         Categoria = gsub("Região.","", Categoria)) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped",
+                full_width = FALSE,
+                font_size = 20)
+
+# Plotando o mapa perceptual
+df_ACM %>%
+  rownames_to_column() %>%
+  rename(Categoria = 1) %>%
+  mutate(Categoria = gsub("Mercosul.","", Categoria),
+         Categoria = gsub("Escolaridade.","", Categoria),
+         Categoria = gsub("Região.","", Categoria)) %>%
+  ggplot(aes(x = CS1, y = CS2, label = Categoria, color = Variável)) +
+  geom_point() +
+  ggtitle("Mapa Percentual Uruguai (2017-2022)")+
+  ggrepel::geom_label_repel() +
+  geom_vline(aes(xintercept = 0), linetype = "longdash", color = "grey48") +
+  geom_hline(aes(yintercept = 0), linetype = "longdash", color = "grey48") +
+  labs(x = paste("Dimensão 1:", paste0(round(perc_variancia[1], 2), "%")),
+       y = paste("Dimensão 2:", paste0(round(perc_variancia[2], 2), "%"))) +
+  scale_color_manual("Variável",
+                     values = c("turquoise3", "springgreen4", "deeppink1")) +
+  theme_bw()
+
+
+```
+
+
+
+
+
+
+
+
+
